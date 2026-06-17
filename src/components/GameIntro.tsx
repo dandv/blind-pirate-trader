@@ -1,5 +1,3 @@
-import { useState } from 'react';
-
 import { Button } from '@/components/ui/button';
 
 export function GameIntro({ onStart, loading, error }: {
@@ -9,9 +7,8 @@ export function GameIntro({ onStart, loading, error }: {
    preparing?: boolean;
    error: string | null;
 }) {
-   const [showRules, setShowRules] = useState(true);
    return (
-      <div className='fixed inset-0 z-30 flex items-center justify-center bg-background/85 p-4 backdrop-blur-sm'>
+      <div className='fixed inset-0 z-30 flex items-center justify-center bg-background/85 backdrop-blur-sm'>
          <div className='w-full max-w-xl text-center rounded-2xl border border-border bg-card p-6 shadow-2xl'>
             <div className='text-xs uppercase tracking-[0.2em] text-muted-foreground'>
                Blind Pirate Trader
@@ -25,16 +22,14 @@ export function GameIntro({ onStart, loading, error }: {
                <span className='font-semibold text-foreground'>$100</span>.
             </p>
 
-            {showRules && (
-               <ul className='mt-4 space-y-1.5 text-sm'>
-                  <Rule>Start with $10,000 cash.</Rule>
-                  <Rule>Buy or sell in $100 / $500 / $1000 lots.</Rule>
-                  <Rule>Each trade advances the simulator by 1 minute.</Rule>
-                  <Rule>Fast-forward 5m → 1d to skip ahead.</Rule>
-                  <Rule>End any time, or play to the end of the series.</Rule>
-                  <Rule>The asset is revealed at the end with full P&L.</Rule>
-               </ul>
-            )}
+            <ul className='mt-4 space-y-1.5 text-sm'>
+               <Rule>Start with $10,000 cash.</Rule>
+               <Rule>Buy or sell in $100 / $500 / $1000 lots.</Rule>
+               <Rule>Each trade advances the simulator by 1 minute.</Rule>
+               <Rule>Fast-forward 5m → 1d to skip ahead.</Rule>
+               <Rule>End any time, or play to the end of the series.</Rule>
+               <Rule>The asset is revealed at the end with full P&L.</Rule>
+            </ul>
 
             {error && (
                <div className='mt-4 rounded-md border border-[color:var(--loss)]/40 bg-[color:var(--loss)]/10 p-3 text-sm text-[color:var(--loss)]'>
@@ -42,15 +37,9 @@ export function GameIntro({ onStart, loading, error }: {
                </div>
             )}
 
-            <div className='mt-6 flex items-center justify-between gap-3'>
-               <button
-                  className='text-xs text-muted-foreground underline-offset-4 hover:underline'
-                  onClick={() => setShowRules((s) => !s)}
-               >
-                  {showRules ? 'Hide rules' : 'Show rules'}
-               </button>
-                <Button size='lg' onClick={onStart} disabled={loading}>
-                   {loading ? 'Loading market…' : 'Start trading'}
+            <div className='mt-6 flex items-center justify-end gap-3'>
+               <Button size='lg' onClick={onStart} disabled={loading}>
+                  {loading ? 'Loading market…' : 'Start trading'}
                </Button>
             </div>
          </div>
