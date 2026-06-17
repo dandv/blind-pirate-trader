@@ -5,7 +5,15 @@ import { nitro } from "nitro/vite";
 import { defineConfig } from "vite";
 import tsConfigPaths from "vite-tsconfig-paths";
 
+const isGitHubPages = process.env.GITHUB_PAGES === "true";
+// Derive the Pages base from the repo name in CI (GITHUB_REPOSITORY is
+// "owner/repo"), so renaming the repo can't break asset paths. Falls back to
+// the known name for local `build:pages` runs.
+const repo = process.env.GITHUB_REPOSITORY?.split("/")[1];
+const pagesBase = `/${repo ?? "blind-pirate-trader"}/`;
+
 export default defineConfig({
+  base: isGitHubPages ? pagesBase : "/",
   css: {
     transformer: "lightningcss",
   },
@@ -31,6 +39,14 @@ export default defineConfig({
     tsConfigPaths({ projects: ["./tsconfig.json"] }),
     tanstackStart({
       server: { entry: "server" },
+      ...(isGitHubPages && {
+        spa: {
+          enabled: true,
+          prerender: {
+            outputPath: "/index.html",
+          },
+        },
+      }),
       importProtection: {
         behavior: "error",
         client: {

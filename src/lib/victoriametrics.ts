@@ -4,10 +4,10 @@
  */
 
 /**
- * Routed through our same-origin server proxy at /api/vm/* to avoid mixed-content
- * blocking when the app is served over HTTPS (the upstream VM is http://).
+ * Routed through our same-origin server proxy at /api/vm/* in dev/Node deploy.
+ * On static hosts (GitHub Pages), set VITE_VM_BASE to the VictoriaMetrics origin.
  */
-const VM_BASE = '/api/vm';
+const VM_BASE = import.meta.env.VITE_VM_BASE ?? '/api/vm';
 const EXCHANGE = 'kraken';
 
 export interface Candle {
