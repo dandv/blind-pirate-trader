@@ -8,7 +8,7 @@ import { GameEnd } from '@/components/GameEnd';
 import { GameIntro } from '@/components/GameIntro';
 import { ThemeSelector } from '@/components/ThemeSelector';
 import { TradeHistory } from '@/components/TradeHistory';
-import { useTheme } from '@/hooks/useTheme';
+import { useTheme } from '@/hooks/use-theme';
 import {
    createInitial,
    reducer,
@@ -324,7 +324,7 @@ function Index() {
          )}
 
          {/* Main area: chart + side panel (history) */}
-         <main className='grid min-h-0 flex-1 grid-cols-1 gap-2 lg:grid-cols-[1fr_110px]'>
+         <main className='grid min-h-0 flex-1 grid-cols-1 gap-2 lg:grid-cols-[1fr_minmax(260px,300px)]'>
             <section className='min-h-[300px] overflow-hidden rounded-2xl border border-border bg-card/40 backdrop-blur-sm'>
                {state.phase !== 'intro' && state.series.length > 0 ? (
                   <Chart
@@ -342,9 +342,9 @@ function Index() {
                   </div>
                )}
             </section>
-          <aside className='hidden min-h-0 flex-col gap-0.5 overflow-hidden lg:flex'>
+          <aside className='hidden min-h-0 flex-col gap-2 overflow-hidden lg:flex'>
             {state.phase !== 'intro' && (
-               <div className='flex flex-col gap-0 rounded-lg border border-border bg-card/60 p-0 backdrop-blur-sm'>
+               <div className='flex shrink-0 flex-col gap-2 rounded-lg border border-border bg-card/60 p-2 backdrop-blur-sm'>
                   <Dashboard state={state} />
                   <Controls
                      tradeVolumeUsd={state.tradeVolumeUsd}
@@ -361,10 +361,10 @@ function Index() {
                </div>
             )}
             <div className='flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl border border-border bg-card/40 backdrop-blur-sm'>
-                <div className='border-b border-border px-2 py-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground'>
+                <div className='shrink-0 border-b border-border px-2.5 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground'>
                    Trade history
                 </div>
-               <div className='h-[calc(100%-2.25rem)]'>
+               <div className='min-h-0 flex-1 overflow-hidden'>
                   <TradeHistory trades={state.trades} />
                </div>
             </div>

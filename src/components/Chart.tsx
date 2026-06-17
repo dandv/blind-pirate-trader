@@ -42,11 +42,11 @@ function formatElapsed(seconds: number): string {
 
 function formatAbsolute(seconds: number): string {
     const d = new Date(seconds * 1000);
-    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const m = d.getMonth() + 1;
     const dd = String(d.getDate()).padStart(2, '0');
     const hh = String(d.getHours()).padStart(2, '0');
     const mi = String(d.getMinutes()).padStart(2, '0');
-    return `${mm}-${dd} ${hh}:${mi}`;
+    return `${m}/${dd} ${hh}:${mi}`;
 }
 
 export function Chart({ candles, originSec, normFactor, showVolume, dark, absoluteTime = false, lastDeltaPct = 0 }: ChartProps) {

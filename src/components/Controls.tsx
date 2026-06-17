@@ -87,33 +87,35 @@ export function Controls(props: ControlsProps) {
 
         return (
             <TooltipProvider delayDuration={150}>
-            <div className='flex flex-col gap-0'>
+            <div className='flex flex-col gap-2'>
             {/* Buy / Sell */}
             <div className='grid grid-cols-2 gap-0'>
             <Button
             ref={buyRef}
             size='sm'
         variant='default'
-        className='bg-[color:var(--gain)] text-white hover:bg-[color:var(--gain)]/90 h-7 px-1 text-xs font-bold rounded-none'
+        className='bg-[color:var(--gain)] text-white hover:bg-[color:var(--gain)]/90 h-7 gap-1.5 px-2 text-xs font-bold rounded-none'
         onClick={onBuyClick}
         disabled={props.disabled}
         data-testid='btn-buy'
         >
-        BUY
+        <span>BUY</span>
+        <span className='text-[9px] font-normal opacity-80'>B</span>
         </Button>
         <Button
         ref={sellRef}
         size='sm'
         variant='default'
-        className='bg-[color:var(--loss)] text-white hover:bg-[color:var(--loss)]/90 h-7 px-1 text-xs font-bold rounded-none'
+        className='bg-[color:var(--loss)] text-white hover:bg-[color:var(--loss)]/90 h-7 gap-1.5 px-2 text-xs font-bold rounded-none'
         onClick={onSellClick}
         disabled={props.disabled}
         >
-        SELL
+        <span>SELL</span>
+        <span className='text-[9px] font-normal opacity-80'>S</span>
         </Button>
         </div>
 
-        {/* Volume + End */}
+        {/* Volume */}
         <div className='flex items-center gap-0 border-t border-border'>
         <Select
         value={String(props.tradeVolumeUsd)}
@@ -146,7 +148,7 @@ export function Controls(props: ControlsProps) {
         ))}
         </SelectContent>
         </Select>
-        <label className='flex items-center gap-0.5 text-[10px] text-muted-foreground px-1 whitespace-nowrap border-l border-border'>
+        <label className='flex items-center gap-0.5 text-[10px] text-muted-foreground px-2 whitespace-nowrap border-l border-border'>
         <input
         type='checkbox'
         className='h-3 w-3 accent-[color:var(--ring)]'
@@ -155,9 +157,6 @@ export function Controls(props: ControlsProps) {
         />
         Vol
         </label>
-        <Button variant='ghost' size='sm' className='h-6 px-1 text-[10px] rounded-none border-l border-border' onClick={props.onEnd}>
-        ×
-        </Button>
         </div>
 
         {/* Row 1: 5m, 15m, 30m */}
@@ -204,6 +203,23 @@ export function Controls(props: ControlsProps) {
         <TooltipContent>Hotkey: {b.hotkey}</TooltipContent>
         </Tooltip>
         ))}
+        </div>
+
+        <div className='border-t border-border pt-2'>
+        <Tooltip>
+        <TooltipTrigger asChild>
+        <Button
+        variant='outline'
+        size='sm'
+        className='h-8 w-full text-xs text-muted-foreground'
+        onClick={props.onEnd}
+        disabled={props.disabled}
+        >
+        End game
+        </Button>
+        </TooltipTrigger>
+        <TooltipContent>Hotkey: Esc</TooltipContent>
+        </Tooltip>
         </div>
         </div>
         </TooltipProvider>

@@ -14,12 +14,12 @@ export function Dashboard({ state }: { state: GameState }) {
     const pnlColor = pnl > 0 ? 'text-[color:var(--gain)]' : pnl < 0 ? 'text-[color:var(--loss)]' : '';
 
     return (
-        <div className='grid grid-cols-3 gap-1 lg:grid-cols-1'>
+        <div className='grid grid-cols-3 gap-2 lg:grid-cols-1'>
         <Stat label='Cash'>
-        <div className='text-sm font-semibold tabular-nums'>${fmtUsd(cash)}</div>
+        <div className='text-sm font-semibold tabular-nums'>{fmtUsd(cash)}</div>
         </Stat>
         <Stat label='Asset'>
-        <div className='text-sm font-semibold tabular-nums'>${fmtUsd(assets)}</div>
+        <div className='text-sm font-semibold tabular-nums'>{fmtUsd(assets)}</div>
         <div className='mt-0.5 text-[9px] text-muted-foreground tabular-nums'>
         {state.units.toFixed(4)} u
         {state.units > 1e-9 && state.avgCostNorm > 0
@@ -39,11 +39,11 @@ export function Dashboard({ state }: { state: GameState }) {
 
 function Stat({ label, children }: { label: string; children: React.ReactNode }) {
     return (
-        <div className='rounded-md border border-border bg-card/60 px-2 py-1 backdrop-blur-sm'>
+        <div className='rounded-md border border-border bg-card/60 px-2.5 py-2 backdrop-blur-sm'>
         <div className='text-[9px] font-medium uppercase tracking-wider text-muted-foreground'>
         {label}
         </div>
-        <div className='mt-0.5'>{children}</div>
+        <div className='mt-1'>{children}</div>
         </div>
     );
 }

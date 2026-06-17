@@ -1,5 +1,5 @@
 {
-  "name": "tanstack_start_ts",
+  "name": "blind-trader",
   "private": true,
   "sideEffects": false,
   "type": "module",
@@ -69,7 +69,6 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.32.0",
-    "@lovable.dev/vite-tanstack-config": "2.3.2",
     "@types/canvas-confetti": "^1.9.0",
     "@types/node": "^22.16.5",
     "@types/react": "^19.2.0",

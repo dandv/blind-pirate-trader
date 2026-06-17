@@ -10,30 +10,30 @@ export function TradeHistory({ trades }: { trades: Trade[] }) {
       );
    }
    return (
-      <div className='h-full overflow-auto'>
-         <table className='w-full text-sm'>
-            <thead className='sticky top-0 bg-card text-xs uppercase tracking-wider text-muted-foreground'>
+      <div className='h-full min-h-0 overflow-auto'>
+         <table className='w-full min-w-[240px] text-xs'>
+            <thead className='sticky top-0 bg-card text-[10px] uppercase tracking-wider text-muted-foreground'>
                <tr>
-                  <th className='px-3 py-2 text-left'>Time</th>
-                  <th className='px-3 py-2 text-left'>Side</th>
-                  <th className='px-3 py-2 text-right'>Volume</th>
-                  <th className='px-3 py-2 text-right'>Price</th>
+                  <th className='px-2 py-1.5 text-left'>Time</th>
+                  <th className='px-2 py-1.5 text-left'>Side</th>
+                  <th className='px-2 py-1.5 text-right'>Vol</th>
+                  <th className='px-2 py-1.5 text-right'>Price</th>
                </tr>
             </thead>
             <tbody>
                {[...trades].reverse().map((t, i) => (
                   <tr key={trades.length - 1 - i} className='border-t border-border/60'>
-                      <td className='whitespace-nowrap px-3 py-1.5 tabular-nums text-muted-foreground'>
+                      <td className='whitespace-nowrap px-2 py-1 tabular-nums text-muted-foreground'>
                          {formatElapsed(t.tOffsetSec)}
                       </td>
                      <td
-                        className='px-3 py-1.5 font-semibold'
+                        className='px-2 py-1 font-semibold'
                         style={{ color: t.side === 'BUY' ? 'var(--gain)' : 'var(--loss)' }}
                      >
                         {t.side}
                      </td>
-                     <td className='px-3 py-1.5 text-right tabular-nums'>${t.notionalUsd}</td>
-                     <td className='px-3 py-1.5 text-right tabular-nums'>${t.priceNorm.toFixed(2)}</td>
+                     <td className='px-2 py-1 text-right tabular-nums'>${t.notionalUsd}</td>
+                     <td className='px-2 py-1 text-right tabular-nums'>${t.priceNorm.toFixed(2)}</td>
                   </tr>
                ))}
             </tbody>

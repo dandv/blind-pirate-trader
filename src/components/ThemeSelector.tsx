@@ -1,6 +1,6 @@
 import { Monitor, Moon, Sun } from 'lucide-react';
 
-import type { Theme } from '@/hooks/useTheme';
+import type { Theme } from '@/hooks/use-theme';
 
 export function ThemeSelector({ value, onChange }: { value: Theme; onChange: (t: Theme) => void }) {
    const opts: Array<{ v: Theme; label: string; icon: React.ReactNode }> = [

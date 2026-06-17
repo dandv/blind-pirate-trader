@@ -1,12 +1,14 @@
 import { createFileRoute } from '@tanstack/react-router';
 
 // The browser only hits same-origin /api/vm/*; this server-side proxy fetches
-// the upstream VictoriaMetrics (via the vmauth gateway).
-const VM_BASE = 'https://vicmet.dandv.me';
+// the upstream VictoriaMetrics (via the vmauth gateway). Override with
+// VM_UPSTREAM_URL if needed.
+const VM_UPSTREAM =
+   process.env.VM_UPSTREAM_URL ?? 'https://vicmet.dandv.me';
 
 async function proxy(request: Request, splat: string): Promise<Response> {
    const url = new URL(request.url);
-   const target = `${VM_BASE}/${splat}${url.search}`;
+   const target = `${VM_UPSTREAM.replace(/\/$/, '')}/${splat}${url.search}`;
    try {
       const upstream = await fetch(target, {
          method: request.method,

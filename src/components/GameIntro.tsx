@@ -12,12 +12,12 @@ export function GameIntro({ onStart, loading, error }: {
    const [showRules, setShowRules] = useState(true);
    return (
       <div className='fixed inset-0 z-30 flex items-center justify-center bg-background/85 p-4 backdrop-blur-sm'>
-         <div className='w-full max-w-xl rounded-2xl border border-border bg-card p-6 shadow-2xl'>
+         <div className='w-full max-w-xl text-center rounded-2xl border border-border bg-card p-6 shadow-2xl'>
             <div className='text-xs uppercase tracking-[0.2em] text-muted-foreground'>
-               Blind Trader
+               Blind Pirate Trader
             </div>
-            <h1 className='mt-1 bg-gradient-to-r from-[color:var(--brand-a)] to-[color:var(--brand-b)] bg-clip-text text-3xl font-bold text-transparent sm:text-4xl'>
-               Trade an unknown asset
+            <h1 className='mt-1 bg-gradient-to-r from-[color:var(--brand-a)] to-[color:var(--brand-b)] bg-clip-text text-2xl font-bold text-transparent sm:text-3xl'>
+               Trade an unknown Kraken asset
             </h1>
             <p className='mt-3 text-sm text-muted-foreground'>
                You're about to trade one of Kraken's top crypto/USD pairs over a real historical
