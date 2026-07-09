@@ -6,12 +6,12 @@
 
 Trade one of Kraken's top crypto/USD pairs over a real historical window — but you won't know which, or when. Price is normalized around **$100**.
 
-* Start with $10,000 cash.
-* Buy or sell in $100 / $500 / $1000 lots.
-* Each trade advances the simulator by 1 minute.
-* Fast-forward 5m → 1d to skip ahead.
-* End any time, or play to the end of the series.
-* The asset is revealed at the end with full P&L.
+- Start with $10,000 cash.
+- Buy or sell in $100 / $500 / $1000 lots.
+- Each trade advances the simulator by 1 minute.
+- Fast-forward 5m → 1d to skip ahead.
+- End any time, or play to the end of the series.
+- The asset is revealed at the end with full P&L.
 
 ## Live demo
 
@@ -50,6 +50,7 @@ cd ticks && deno task --env-file=../.env collect
 
 ✅ Time-to-first-call was well within 10 minutes, the bottleneck being the agent speed.  
 ❌ The WebSocket API uses different asset pair labels (e.g. XBT vs. BTC). This is [documented](https://support.kraken.com/articles/360000920306-api-symbols-and-tickers), but there is room for improvement:
-- 💡 the `wsname` mapping could be prominnetly highlighted so even less capable agents can easily identify it  
-- 🐛 the [AssetPairs REST endpoint](https://docs.kraken.com/api-reference/market-data/get-tradable-asset-pairs) incorrectly returns the wsname for XDGUSD as "XDG/USD",  which fails for WS - `{"error":"Currency pair not supported XDG/USD","method":"subscribe","success":false,"symbol":"XDG/USD"}`. As a workaround, this was hardcoded in the game as `DOGE` instead of `XDG`.
+
+- 💡 the `wsname` mapping could be prominnetly highlighted so even less capable agents can easily identify it
+- 🐛 the [AssetPairs REST endpoint](https://docs.kraken.com/api-reference/market-data/get-tradable-asset-pairs) incorrectly returns the wsname for XDGUSD as "XDG/USD", which fails for WS - `{"error":"Currency pair not supported XDG/USD","method":"subscribe","success":false,"symbol":"XDG/USD"}`. As a workaround, this was hardcoded in the game as `DOGE` instead of `XDG`.
 - 🐛 https://support.kraken.com/articles/advanced-api-faq has a broken link to the [REST API Trades endpoint](https://docs.kraken.com/rest/#operation/getRecentTrades). It should be https://docs.kraken.com/api-reference/market-data/get-recent-trades#get-recent-trades.

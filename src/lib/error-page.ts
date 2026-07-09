@@ -28,4 +28,3 @@ export function renderErrorPage(): string {
   </body>
 </html>`;
 }
-

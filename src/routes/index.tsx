@@ -1,46 +1,41 @@
-import { createFileRoute } from '@tanstack/react-router';
-import { useCallback, useEffect, useReducer, useRef, useState } from 'react';
+import { createFileRoute } from "@tanstack/react-router";
+import { useCallback, useEffect, useReducer, useRef, useState } from "react";
 
-import { Chart } from '@/components/Chart';
-import { Controls } from '@/components/Controls';
-import { Dashboard } from '@/components/Dashboard';
-import { GameEnd } from '@/components/GameEnd';
-import { GameIntro } from '@/components/GameIntro';
-import { ThemeSelector } from '@/components/ThemeSelector';
-import { TradeHistory } from '@/components/TradeHistory';
-import { useTheme } from '@/hooks/use-theme';
+import { Chart } from "@/components/Chart";
+import { Controls } from "@/components/Controls";
+import { Dashboard } from "@/components/Dashboard";
+import { GameEnd } from "@/components/GameEnd";
+import { GameIntro } from "@/components/GameIntro";
+import { ThemeSelector } from "@/components/ThemeSelector";
+import { TradeHistory } from "@/components/TradeHistory";
+import { useTheme } from "@/hooks/use-theme";
+import { createInitial, reducer, tOffsetSec, type VolumeChoice } from "@/lib/gameState";
 import {
-   createInitial,
-   reducer,
-   tOffsetSec,
-   type VolumeChoice,
-} from '@/lib/gameState';
-import {
-   earliestSampleTime,
-   fetchOhlcv,
-   latestSampleTime,
-   listKrakenSymbols,
-   type Candle,
-} from '@/lib/victoriametrics';
+  earliestSampleTime,
+  fetchOhlcv,
+  latestSampleTime,
+  listKrakenSymbols,
+  type Candle,
+} from "@/lib/victoriametrics";
 
-export const Route = createFileRoute('/')({
-   head: () => ({
-      meta: [
-         { title: 'Blind Trader — Crypto Trading Sim' },
-         {
-            name: 'description',
-            content:
-               'A blinded crypto trading simulator over real Kraken historical data. Buy, sell, fast-forward, and reveal the asset at the end.',
-         },
-         { property: 'og:title', content: 'Blind Trader — Crypto Trading Sim' },
-         {
-            property: 'og:description',
-            content:
-               'Trade an unknown Kraken USD pair over real historical data, normalized around $100. Beat the market.',
-         },
-      ],
-   }),
-   component: Index,
+export const Route = createFileRoute("/")({
+  head: () => ({
+    meta: [
+      { title: "Blind Trader — Crypto Trading Sim" },
+      {
+        name: "description",
+        content:
+          "A blinded crypto trading simulator over real Kraken historical data. Buy, sell, fast-forward, and reveal the asset at the end.",
+      },
+      { property: "og:title", content: "Blind Trader — Crypto Trading Sim" },
+      {
+        property: "og:description",
+        content:
+          "Trade an unknown Kraken USD pair over real historical data, normalized around $100. Beat the market.",
+      },
+    ],
+  }),
+  component: Index,
 });
 
 const STEP_SEC = 5;
@@ -52,371 +47,414 @@ const CHUNK_SEC = 2 * 24 * 60 * 60;
 const PREFETCH_THRESHOLD_SEC = CHUNK_SEC;
 
 interface PreparedGame {
-   symbol: string;
-   startSec: number;
-   endSec: number;
-   candles: Candle[];
-   normFactor: number;
+  symbol: string;
+  startSec: number;
+  endSec: number;
+  candles: Candle[];
+  normFactor: number;
 }
 
 function Index() {
-   const [theme, setTheme] = useTheme();
-   const [state, dispatch] = useReducer(reducer, undefined, createInitial);
-   const [loading, setLoading] = useState(false);
-   const [loadError, setLoadError] = useState<string | null>(null);
-   const [showVolume, setShowVolume] = useState(true);
-   const [pulseLabel, setPulseLabel] = useState<string | null>(null);
-   const [prepared, setPrepared] = useState<PreparedGame | null>(null);
-   const [preparing, setPreparing] = useState(false);
-   const pulseSeq = useRef(0);
-   const preparedRef = useRef<PreparedGame | null>(null);
-   const preparePromiseRef = useRef<Promise<PreparedGame> | null>(null);
-   const chunkRequestRef = useRef<string | null>(null);
+  const [theme, setTheme] = useTheme();
+  const [state, dispatch] = useReducer(reducer, undefined, createInitial);
+  const [loading, setLoading] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [showVolume, setShowVolume] = useState(true);
+  const [pulseLabel, setPulseLabel] = useState<string | null>(null);
+  const [prepared, setPrepared] = useState<PreparedGame | null>(null);
+  const [preparing, setPreparing] = useState(false);
+  const pulseSeq = useRef(0);
+  const preparedRef = useRef<PreparedGame | null>(null);
+  const preparePromiseRef = useRef<Promise<PreparedGame> | null>(null);
+  const chunkRequestRef = useRef<string | null>(null);
 
-   const dark =
-      theme === 'dark' ||
-      (theme === 'system' &&
-         typeof window !== 'undefined' &&
-         window.matchMedia?.('(prefers-color-scheme: dark)').matches);
+  const dark =
+    theme === "dark" ||
+    (theme === "system" &&
+      typeof window !== "undefined" &&
+      window.matchMedia?.("(prefers-color-scheme: dark)").matches);
 
-   const triggerPulse = useCallback((label: string) => {
-      pulseSeq.current += 1;
-      setPulseLabel(`${label}#${pulseSeq.current}`);
-   }, []);
+  const triggerPulse = useCallback((label: string) => {
+    pulseSeq.current += 1;
+    setPulseLabel(`${label}#${pulseSeq.current}`);
+  }, []);
 
-   const prepareNextGame = useCallback(async (): Promise<PreparedGame> => {
-      if (preparedRef.current) return preparedRef.current;
-      if (preparePromiseRef.current) return preparePromiseRef.current;
+  const prepareNextGame = useCallback(async (): Promise<PreparedGame> => {
+    if (preparedRef.current) return preparedRef.current;
+    if (preparePromiseRef.current) return preparePromiseRef.current;
 
-      setPreparing(true);
-      const promise = (async () => {
-         const allSymbols = await listKrakenSymbols();
-         const pool = [...allSymbols];
-         const minPlay = MIN_PLAY_HOURS * 3600;
+    setPreparing(true);
+    const promise = (async () => {
+      const allSymbols = await listKrakenSymbols();
+      const pool = [...allSymbols];
+      const minPlay = MIN_PLAY_HOURS * 3600;
 
-         let symbol = '';
-         let latest = 0;
-         let earliest = 0;
-         const rejections: Array<{ symbol: string; reason: string }> = [];
+      let symbol = "";
+      let latest = 0;
+      let earliest = 0;
+      const rejections: Array<{ symbol: string; reason: string }> = [];
 
-         for (let attempt = 0; attempt < MAX_SYMBOL_ATTEMPTS && pool.length; attempt++) {
-            const idx = Math.floor(Math.random() * pool.length);
-            const candidate = pool.splice(idx, 1)[0];
-            console.info('[game] trying symbol', candidate, `(attempt ${attempt + 1})`);
+      for (let attempt = 0; attempt < MAX_SYMBOL_ATTEMPTS && pool.length; attempt++) {
+        const idx = Math.floor(Math.random() * pool.length);
+        const candidate = pool.splice(idx, 1)[0];
+        console.info("[game] trying symbol", candidate, `(attempt ${attempt + 1})`);
 
-            const lt = await latestSampleTime(candidate);
-            if (!lt) {
-               rejections.push({ symbol: candidate, reason: 'no current tick' });
-               continue;
-            }
-            const er = await earliestSampleTime(candidate, lt);
-            const spanH = (lt - er) / 3600;
-            console.info('[game] span', candidate, `${spanH.toFixed(2)}h`);
-            if (lt - er < minPlay + 600) {
-               rejections.push({ symbol: candidate, reason: `only ${spanH.toFixed(2)}h available` });
-               continue;
-            }
-            symbol = candidate;
-            latest = lt;
-            earliest = er;
-            break;
-         }
-
-         if (!symbol) {
-            console.error('[game] no usable symbol', { tried: rejections, minPlayHours: MIN_PLAY_HOURS });
-            throw new Error(
-               `Couldn't find a Kraken pair with at least ${MIN_PLAY_HOURS}h of recent data after ${rejections.length} tries. Try again.`,
-            );
-         }
-
-         const playWindow = latest - earliest;
-         const maxStartOffset = playWindow - minPlay;
-         const startOffset = Math.floor(Math.random() * maxStartOffset);
-         const startSec = earliest + startOffset;
-         const endSec = latest;
-         const firstChunkEndSec = Math.min(endSec, startSec + CHUNK_SEC);
-         console.info('[game] prepared range', {
-            symbol,
-            startISO: new Date(startSec * 1000).toISOString(),
-            firstChunkEndISO: new Date(firstChunkEndSec * 1000).toISOString(),
-            endISO: new Date(endSec * 1000).toISOString(),
-         });
-
-         const candles = await fetchOhlcv(symbol, startSec, firstChunkEndSec, STEP_SEC);
-         if (candles.length < 60) {
-            throw new Error(`Insufficient candles fetched (${candles.length}). Try again.`);
-         }
-
-         return { symbol, startSec, endSec, candles, normFactor: candles[0].open / 100 };
-      })();
-
-      preparePromiseRef.current = promise;
-      try {
-         const game = await promise;
-         preparedRef.current = game;
-         setPrepared(game);
-         return game;
-      } finally {
-         preparePromiseRef.current = null;
-         setPreparing(false);
+        const lt = await latestSampleTime(candidate);
+        if (!lt) {
+          rejections.push({ symbol: candidate, reason: "no current tick" });
+          continue;
+        }
+        const er = await earliestSampleTime(candidate, lt);
+        const spanH = (lt - er) / 3600;
+        console.info("[game] span", candidate, `${spanH.toFixed(2)}h`);
+        if (lt - er < minPlay + 600) {
+          rejections.push({ symbol: candidate, reason: `only ${spanH.toFixed(2)}h available` });
+          continue;
+        }
+        symbol = candidate;
+        latest = lt;
+        earliest = er;
+        break;
       }
-   }, []);
 
-   useEffect(() => {
-      if (state.phase === 'intro') {
-         prepareNextGame().catch((e) => {
-            const msg = e instanceof Error ? e.message : 'Unknown error loading the market.';
-            console.error('[game] prepare failed', e);
-            setLoadError(msg);
-         });
+      if (!symbol) {
+        console.error("[game] no usable symbol", {
+          tried: rejections,
+          minPlayHours: MIN_PLAY_HOURS,
+        });
+        throw new Error(
+          `Couldn't find a Kraken pair with at least ${MIN_PLAY_HOURS}h of recent data after ${rejections.length} tries. Try again.`,
+        );
       }
-   }, [state.phase, prepareNextGame]);
 
-   const startGame = useCallback(async () => {
-      setLoading(true);
-      setLoadError(null);
-      try {
-         const game = preparedRef.current ?? await prepareNextGame();
-         const initialCursor = Math.min(game.candles.length - 1, Math.floor((5 * 60) / STEP_SEC));
-         dispatch({
-            type: 'init',
-            symbol: game.symbol,
-            series: game.candles,
-            normFactor: game.normFactor,
-            initialCursor,
-            endSec: game.endSec,
-         });
-         preparedRef.current = null;
-         setPrepared(null);
+      const playWindow = latest - earliest;
+      const maxStartOffset = playWindow - minPlay;
+      const startOffset = Math.floor(Math.random() * maxStartOffset);
+      const startSec = earliest + startOffset;
+      const endSec = latest;
+      const firstChunkEndSec = Math.min(endSec, startSec + CHUNK_SEC);
+      console.info("[game] prepared range", {
+        symbol,
+        startISO: new Date(startSec * 1000).toISOString(),
+        firstChunkEndISO: new Date(firstChunkEndSec * 1000).toISOString(),
+        endISO: new Date(endSec * 1000).toISOString(),
+      });
 
-         // Queue the next market while this game is being played.
-         prepareNextGame().catch((e) => console.warn('[game] background prepare failed', e));
-
-         // Five 5-minute fast-forwards to unroll the chart for the user, with a pulse on the button.
-         for (let i = 0; i < 5; i++) {
-            await new Promise((r) => setTimeout(r, 320));
-            dispatch({ type: 'fastForward', seconds: 5 * 60 });
-            triggerPulse('5m');
-         }
-      } catch (e) {
-         const msg = e instanceof Error ? e.message : 'Unknown error loading the market.';
-         console.error('[game] start failed', e);
-         setLoadError(msg);
-      } finally {
-         setLoading(false);
+      const candles = await fetchOhlcv(symbol, startSec, firstChunkEndSec, STEP_SEC);
+      if (candles.length < 60) {
+        throw new Error(`Insufficient candles fetched (${candles.length}). Try again.`);
       }
-   }, [prepareNextGame, triggerPulse]);
 
-   const restart = useCallback(() => {
-      void startGame();
-   }, [startGame]);
+      return { symbol, startSec, endSec, candles, normFactor: candles[0].open / 100 };
+    })();
 
-   const onBuy = useCallback(() => dispatch({ type: 'trade', side: 'BUY' }), []);
-   const onSell = useCallback(() => dispatch({ type: 'trade', side: 'SELL' }), []);
-   const onFf = useCallback(
-      (minutes: number) => dispatch({ type: 'fastForward', seconds: minutes * 60 }),
-      [],
-   );
-   const onSetVol = useCallback(
-      (v: VolumeChoice) => dispatch({ type: 'setTradeVolume', usd: v }),
-      [],
-   );
-   const onEnd = useCallback(() => dispatch({ type: 'end' }), []);
+    preparePromiseRef.current = promise;
+    try {
+      const game = await promise;
+      preparedRef.current = game;
+      setPrepared(game);
+      return game;
+    } finally {
+      preparePromiseRef.current = null;
+      setPreparing(false);
+    }
+  }, []);
 
-   useEffect(() => {
-      if (state.phase !== 'playing' || state.series.length === 0) return;
-      const currentTime = state.series[state.cursor]?.time ?? 0;
-      const latestLoaded = state.series[state.series.length - 1]?.time ?? 0;
-      if (latestLoaded >= state.endSec || latestLoaded - currentTime > PREFETCH_THRESHOLD_SEC) return;
+  useEffect(() => {
+    if (state.phase === "intro") {
+      prepareNextGame().catch((e) => {
+        const msg = e instanceof Error ? e.message : "Unknown error loading the market.";
+        console.error("[game] prepare failed", e);
+        setLoadError(msg);
+      });
+    }
+  }, [state.phase, prepareNextGame]);
 
-      const nextStart = latestLoaded + STEP_SEC;
-      const nextEnd = Math.min(state.endSec, latestLoaded + CHUNK_SEC);
-      const requestKey = `${state.symbol}:${nextStart}:${nextEnd}`;
-      if (chunkRequestRef.current === requestKey) return;
-      chunkRequestRef.current = requestKey;
+  const startGame = useCallback(async () => {
+    setLoading(true);
+    setLoadError(null);
+    try {
+      const game = preparedRef.current ?? (await prepareNextGame());
+      const initialCursor = Math.min(game.candles.length - 1, Math.floor((5 * 60) / STEP_SEC));
+      dispatch({
+        type: "init",
+        symbol: game.symbol,
+        series: game.candles,
+        normFactor: game.normFactor,
+        initialCursor,
+        endSec: game.endSec,
+      });
+      preparedRef.current = null;
+      setPrepared(null);
 
-      fetchOhlcv(state.symbol, nextStart, nextEnd, STEP_SEC)
-         .then((candles) => {
-            if (candles.length > 0) dispatch({ type: 'appendSeries', series: candles });
-         })
-         .catch((e) => {
-            console.error('[game] chunk prefetch failed', e);
-            dispatch({ type: 'error', message: 'Could not load the next market-data chunk. Try ending the game or FF again.' });
-            chunkRequestRef.current = null;
-         });
-   }, [state.phase, state.symbol, state.series, state.cursor, state.endSec]);
+      // Queue the next market while this game is being played.
+      prepareNextGame().catch((e) => console.warn("[game] background prepare failed", e));
 
-   // Keyboard shortcuts.
-   useEffect(() => {
-      if (state.phase !== 'playing') return;
-      const handler = (e: KeyboardEvent) => {
-         const target = e.target as HTMLElement | null;
-         if (target) {
-            if (/^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName)) return;
-            // Radix Select trigger / open listbox / vol-select button.
-            const role = target.getAttribute('role');
-            if (role === 'combobox' || role === 'listbox' || role === 'option') return;
-            if (target.id === 'vol-select' || target.closest('#vol-select')) return;
-         }
+      // Five 5-minute fast-forwards to unroll the chart for the user, with a pulse on the button.
+      for (let i = 0; i < 5; i++) {
+        await new Promise((r) => setTimeout(r, 320));
+        dispatch({ type: "fastForward", seconds: 5 * 60 });
+        triggerPulse("5m");
+      }
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Unknown error loading the market.";
+      console.error("[game] start failed", e);
+      setLoadError(msg);
+    } finally {
+      setLoading(false);
+    }
+  }, [prepareNextGame, triggerPulse]);
 
-         if (e.key === 'Escape') { onEnd(); e.preventDefault(); return; }
-         if (e.key === 'Enter') { onFf(1440); triggerPulse('1d'); e.preventDefault(); return; }
+  const restart = useCallback(() => {
+    void startGame();
+  }, [startGame]);
 
-         const code = e.key.toLowerCase();
-         if (code === 'b') { onBuy(); triggerPulse('BUY'); e.preventDefault(); return; }
-         if (code === 's') { onSell(); triggerPulse('SELL'); e.preventDefault(); return; }
-         if (code === 'v') {
-            const el = document.getElementById('vol-select');
-            el?.focus();
-            e.preventDefault();
-            return;
-         }
+  const onBuy = useCallback(() => dispatch({ type: "trade", side: "BUY" }), []);
+  const onSell = useCallback(() => dispatch({ type: "trade", side: "SELL" }), []);
+  const onFf = useCallback(
+    (minutes: number) => dispatch({ type: "fastForward", seconds: minutes * 60 }),
+    [],
+  );
+  const onSetVol = useCallback(
+    (v: VolumeChoice) => dispatch({ type: "setTradeVolume", usd: v }),
+    [],
+  );
+  const onEnd = useCallback(() => dispatch({ type: "end" }), []);
 
-         if (e.key === 'ArrowDown') {
-            e.preventDefault();
-            if (e.ctrlKey || e.metaKey) { onFf(30); triggerPulse('30m'); }
-            else if (e.shiftKey) { onFf(15); triggerPulse('15m'); }
-            else { onFf(5); triggerPulse('5m'); }
-            return;
-         }
-         if (e.key === 'ArrowRight' || e.key === 'PageDown') {
-            e.preventDefault();
-            if (e.ctrlKey || e.metaKey) { onFf(720); triggerPulse('12h'); }
-            else if (e.shiftKey) { onFf(240); triggerPulse('4h'); }
-            else { onFf(60); triggerPulse('1h'); }
-         }
-      };
-      window.addEventListener('keydown', handler);
-      return () => window.removeEventListener('keydown', handler);
-   }, [state.phase, onBuy, onSell, onFf, onEnd, triggerPulse]);
+  useEffect(() => {
+    if (state.phase !== "playing" || state.series.length === 0) return;
+    const currentTime = state.series[state.cursor]?.time ?? 0;
+    const latestLoaded = state.series[state.series.length - 1]?.time ?? 0;
+    if (latestLoaded >= state.endSec || latestLoaded - currentTime > PREFETCH_THRESHOLD_SEC) return;
 
-   const visibleCandles =
-      state.phase === 'ended' ? state.series : state.series.slice(0, state.cursor + 1);
-   const originSec = state.series[0]?.time ?? 0;
-   const revealed = state.phase === 'ended';
-   const chartNormFactor = revealed ? 1 : state.normFactor;
+    const nextStart = latestLoaded + STEP_SEC;
+    const nextEnd = Math.min(state.endSec, latestLoaded + CHUNK_SEC);
+    const requestKey = `${state.symbol}:${nextStart}:${nextEnd}`;
+    if (chunkRequestRef.current === requestKey) return;
+    chunkRequestRef.current = requestKey;
 
-   return (
-      <div className='flex h-screen w-screen flex-col gap-2 p-2 sm:p-3'>
-         {/* Top bar */}
-         <header className='flex items-center justify-between gap-3 px-1'>
-            <div className='flex items-baseline gap-2'>
-               <h1 className='font-display text-lg font-bold tracking-tight sm:text-xl'>
-                  <span className='bg-gradient-to-r from-[color:var(--brand-a)] to-[color:var(--brand-b)] bg-clip-text text-transparent'>
-                     Blind Trader
-                  </span>
-               </h1>
-               <span className='hidden text-xs text-muted-foreground sm:inline'>
-                  {state.phase === 'playing'
-                     ? `Mystery asset · t = ${formatElapsedShort(tOffsetSec(state))}`
-                     : state.phase === 'ended'
-                       ? `Revealed: ${state.symbol}`
-                       : 'Ready'}
-               </span>
-            </div>
-            <ThemeSelector value={theme} onChange={setTheme} />
-         </header>
+    fetchOhlcv(state.symbol, nextStart, nextEnd, STEP_SEC)
+      .then((candles) => {
+        if (candles.length > 0) dispatch({ type: "appendSeries", series: candles });
+      })
+      .catch((e) => {
+        console.error("[game] chunk prefetch failed", e);
+        dispatch({
+          type: "error",
+          message: "Could not load the next market-data chunk. Try ending the game or FF again.",
+        });
+        chunkRequestRef.current = null;
+      });
+  }, [state.phase, state.symbol, state.series, state.cursor, state.endSec]);
 
-         {state.error && (
-            <div className='rounded-md border border-[color:var(--loss)]/40 bg-[color:var(--loss)]/10 px-3 py-1.5 text-xs text-[color:var(--loss)]'>
-               {state.error}
-            </div>
-         )}
+  // Keyboard shortcuts.
+  useEffect(() => {
+    if (state.phase !== "playing") return;
+    const handler = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (target) {
+        if (/^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName)) return;
+        // Radix Select trigger / open listbox / vol-select button.
+        const role = target.getAttribute("role");
+        if (role === "combobox" || role === "listbox" || role === "option") return;
+        if (target.id === "vol-select" || target.closest("#vol-select")) return;
+      }
 
-         {/* Main area: chart + side panel (history) */}
-         <main className='grid min-h-0 flex-1 grid-cols-1 gap-2 lg:grid-cols-[1fr_minmax(260px,300px)]'>
-            <section className='min-h-[300px] overflow-hidden rounded-2xl border border-border bg-card/40 backdrop-blur-sm'>
-               {state.phase !== 'intro' && state.series.length > 0 ? (
-                  <Chart
-                     candles={visibleCandles}
-                     originSec={originSec}
-                     normFactor={chartNormFactor}
-                     showVolume={showVolume}
-                     dark={dark}
-                     absoluteTime={revealed}
-                     lastDeltaPct={state.lastDeltaPct}
-                  />
-               ) : (
-                  <div className='flex h-full items-center justify-center text-sm text-muted-foreground'>
-                     Chart will appear once the game starts.
-                  </div>
-               )}
-            </section>
-          <aside className='hidden min-h-0 flex-col gap-2 overflow-hidden lg:flex'>
-            {state.phase !== 'intro' && (
-               <div className='flex shrink-0 flex-col gap-2 rounded-lg border border-border bg-card/60 p-2 backdrop-blur-sm'>
-                  <Dashboard state={state} />
-                  <Controls
-                     tradeVolumeUsd={state.tradeVolumeUsd}
-                     onSetVolume={onSetVol}
-                     onBuy={onBuy}
-                     onSell={onSell}
-                     onFastForward={onFf}
-                     onEnd={onEnd}
-                     showVolume={showVolume}
-                     onToggleVolume={setShowVolume}
-                     disabled={state.phase !== 'playing'}
-                     pulseLabel={pulseLabel}
-                  />
-               </div>
-            )}
-            <div className='flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl border border-border bg-card/40 backdrop-blur-sm'>
-                <div className='shrink-0 border-b border-border px-2.5 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground'>
-                   Trade history
-                </div>
-               <div className='min-h-0 flex-1 overflow-hidden'>
-                  <TradeHistory trades={state.trades} />
-               </div>
-            </div>
-         </aside>
-      </main>
+      if (e.key === "Escape") {
+        onEnd();
+        e.preventDefault();
+        return;
+      }
+      if (e.key === "Enter") {
+        onFf(1440);
+        triggerPulse("1d");
+        e.preventDefault();
+        return;
+      }
 
-      {state.phase !== 'intro' && (
-         <section className='rounded-2xl border border-border bg-card/60 p-3 backdrop-blur-sm lg:hidden'>
-            <div className='flex flex-col gap-3'>
-               <Dashboard state={state} />
-               <Controls
-                  tradeVolumeUsd={state.tradeVolumeUsd}
-                  onSetVolume={onSetVol}
-                  onBuy={onBuy}
-                  onSell={onSell}
-                  onFastForward={onFf}
-                  onEnd={onEnd}
-                  showVolume={showVolume}
-                  onToggleVolume={setShowVolume}
-                  disabled={state.phase !== 'playing'}
-                  pulseLabel={pulseLabel}
-               />
-            </div>
-         </section>
+      const code = e.key.toLowerCase();
+      if (code === "b") {
+        onBuy();
+        triggerPulse("BUY");
+        e.preventDefault();
+        return;
+      }
+      if (code === "s") {
+        onSell();
+        triggerPulse("SELL");
+        e.preventDefault();
+        return;
+      }
+      if (code === "v") {
+        const el = document.getElementById("vol-select");
+        el?.focus();
+        e.preventDefault();
+        return;
+      }
+
+      if (e.key === "ArrowDown") {
+        e.preventDefault();
+        if (e.ctrlKey || e.metaKey) {
+          onFf(30);
+          triggerPulse("30m");
+        } else if (e.shiftKey) {
+          onFf(15);
+          triggerPulse("15m");
+        } else {
+          onFf(5);
+          triggerPulse("5m");
+        }
+        return;
+      }
+      if (e.key === "ArrowRight" || e.key === "PageDown") {
+        e.preventDefault();
+        if (e.ctrlKey || e.metaKey) {
+          onFf(720);
+          triggerPulse("12h");
+        } else if (e.shiftKey) {
+          onFf(240);
+          triggerPulse("4h");
+        } else {
+          onFf(60);
+          triggerPulse("1h");
+        }
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [state.phase, onBuy, onSell, onFf, onEnd, triggerPulse]);
+
+  const visibleCandles =
+    state.phase === "ended" ? state.series : state.series.slice(0, state.cursor + 1);
+  const originSec = state.series[0]?.time ?? 0;
+  const revealed = state.phase === "ended";
+  const chartNormFactor = revealed ? 1 : state.normFactor;
+
+  return (
+    <div className="flex h-screen w-screen flex-col gap-2 p-2 sm:p-3">
+      {/* Top bar */}
+      <header className="flex items-center justify-between gap-3 px-1">
+        <div className="flex items-baseline gap-2">
+          <h1 className="font-display text-lg font-bold tracking-tight sm:text-xl">
+            <span className="bg-gradient-to-r from-[color:var(--brand-a)] to-[color:var(--brand-b)] bg-clip-text text-transparent">
+              Blind Trader
+            </span>
+          </h1>
+          <span className="hidden text-xs text-muted-foreground sm:inline">
+            {state.phase === "playing"
+              ? `Mystery asset · t = ${formatElapsedShort(tOffsetSec(state))}`
+              : state.phase === "ended"
+                ? `Revealed: ${state.symbol}`
+                : "Ready"}
+          </span>
+        </div>
+        <ThemeSelector value={theme} onChange={setTheme} />
+      </header>
+
+      {state.error && (
+        <div className="rounded-md border border-[color:var(--loss)]/40 bg-[color:var(--loss)]/10 px-3 py-1.5 text-xs text-[color:var(--loss)]">
+          {state.error}
+        </div>
       )}
 
-
-         {/* Mobile trade history toggleable strip */}
-         <details className='lg:hidden'>
-            <summary className='cursor-pointer rounded-md border border-border bg-card/60 px-3 py-1.5 text-xs uppercase tracking-wider text-muted-foreground'>
-               Trade history ({state.trades.length})
-            </summary>
-            <div className='mt-2 max-h-60 overflow-hidden rounded-xl border border-border bg-card/60'>
-               <TradeHistory trades={state.trades} />
+      {/* Main area: chart + side panel (history) */}
+      <main className="grid min-h-0 flex-1 grid-cols-1 gap-2 lg:grid-cols-[1fr_minmax(260px,300px)]">
+        <section className="min-h-[300px] overflow-hidden rounded-2xl border border-border bg-card/40 backdrop-blur-sm">
+          {state.phase !== "intro" && state.series.length > 0 ? (
+            <Chart
+              candles={visibleCandles}
+              originSec={originSec}
+              normFactor={chartNormFactor}
+              showVolume={showVolume}
+              dark={dark}
+              absoluteTime={revealed}
+              lastDeltaPct={state.lastDeltaPct}
+            />
+          ) : (
+            <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
+              Chart will appear once the game starts.
             </div>
-         </details>
+          )}
+        </section>
+        <aside className="hidden min-h-0 flex-col gap-2 overflow-hidden lg:flex">
+          {state.phase !== "intro" && (
+            <div className="flex shrink-0 flex-col gap-2 rounded-lg border border-border bg-card/60 p-2 backdrop-blur-sm">
+              <Dashboard state={state} />
+              <Controls
+                tradeVolumeUsd={state.tradeVolumeUsd}
+                onSetVolume={onSetVol}
+                onBuy={onBuy}
+                onSell={onSell}
+                onFastForward={onFf}
+                onEnd={onEnd}
+                showVolume={showVolume}
+                onToggleVolume={setShowVolume}
+                disabled={state.phase !== "playing"}
+                pulseLabel={pulseLabel}
+              />
+            </div>
+          )}
+          <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl border border-border bg-card/40 backdrop-blur-sm">
+            <div className="shrink-0 border-b border-border px-2.5 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+              Trade history
+            </div>
+            <div className="min-h-0 flex-1 overflow-hidden">
+              <TradeHistory trades={state.trades} />
+            </div>
+          </div>
+        </aside>
+      </main>
 
-         {state.phase === 'intro' && (
-            <GameIntro onStart={startGame} loading={loading} prepared={Boolean(prepared)} preparing={preparing} error={loadError} />
-         )}
-         {state.phase === 'ended' && <GameEnd state={state} onRestart={restart} />}
-      </div>
-   );
+      {state.phase !== "intro" && (
+        <section className="rounded-2xl border border-border bg-card/60 p-3 backdrop-blur-sm lg:hidden">
+          <div className="flex flex-col gap-3">
+            <Dashboard state={state} />
+            <Controls
+              tradeVolumeUsd={state.tradeVolumeUsd}
+              onSetVolume={onSetVol}
+              onBuy={onBuy}
+              onSell={onSell}
+              onFastForward={onFf}
+              onEnd={onEnd}
+              showVolume={showVolume}
+              onToggleVolume={setShowVolume}
+              disabled={state.phase !== "playing"}
+              pulseLabel={pulseLabel}
+            />
+          </div>
+        </section>
+      )}
+
+      {/* Mobile trade history toggleable strip */}
+      <details className="lg:hidden">
+        <summary className="cursor-pointer rounded-md border border-border bg-card/60 px-3 py-1.5 text-xs uppercase tracking-wider text-muted-foreground">
+          Trade history ({state.trades.length})
+        </summary>
+        <div className="mt-2 max-h-60 overflow-hidden rounded-xl border border-border bg-card/60">
+          <TradeHistory trades={state.trades} />
+        </div>
+      </details>
+
+      {state.phase === "intro" && (
+        <GameIntro
+          onStart={startGame}
+          loading={loading}
+          prepared={Boolean(prepared)}
+          preparing={preparing}
+          error={loadError}
+        />
+      )}
+      {state.phase === "ended" && <GameEnd state={state} onRestart={restart} />}
+    </div>
+  );
 }
 
 function formatElapsedShort(s: number): string {
-   const sec = Math.max(0, Math.round(s));
-   const d = Math.floor(sec / 86400);
-   const h = Math.floor((sec % 86400) / 3600);
-   const m = Math.floor((sec % 3600) / 60);
-   if (d) return `${d}d ${h}h`;
-   if (h) return `${h}h ${m}m`;
-   return `${m}m`;
+  const sec = Math.max(0, Math.round(s));
+  const d = Math.floor(sec / 86400);
+  const h = Math.floor((sec % 86400) / 3600);
+  const m = Math.floor((sec % 3600) / 60);
+  if (d) return `${d}d ${h}h`;
+  if (h) return `${h}h ${m}m`;
+  return `${m}m`;
 }
-

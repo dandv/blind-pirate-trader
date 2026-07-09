@@ -30,8 +30,8 @@
   --color-input: var(--input);
   --color-ring: var(--ring);
   --color-ring-offset-background: var(--background);
-  --font-display: 'Space Grotesk', 'Inter', system-ui, sans-serif;
-  --font-sans: 'Inter', system-ui, sans-serif;
+  --font-display: "Space Grotesk", "Inter", system-ui, sans-serif;
+  --font-sans: "Inter", system-ui, sans-serif;
 }
 
 :root {
@@ -43,27 +43,36 @@
   --card-foreground: oklch(0.16 0.03 260);
   --popover: oklch(1 0 0);
   --popover-foreground: oklch(0.16 0.03 260);
-  --primary: oklch(0.55 0.20 270);
+  --primary: oklch(0.55 0.2 270);
   --primary-foreground: oklch(0.99 0 0);
   --secondary: oklch(0.96 0.01 260);
-  --secondary-foreground: oklch(0.20 0.03 260);
+  --secondary-foreground: oklch(0.2 0.03 260);
   --muted: oklch(0.96 0.01 260);
-  --muted-foreground: oklch(0.50 0.02 260);
+  --muted-foreground: oklch(0.5 0.02 260);
   --accent: oklch(0.96 0.01 260);
-  --accent-foreground: oklch(0.20 0.03 260);
-  --destructive: oklch(0.60 0.24 27);
+  --accent-foreground: oklch(0.2 0.03 260);
+  --destructive: oklch(0.6 0.24 27);
   --destructive-foreground: oklch(0.99 0 0);
   --border: oklch(0.92 0.01 260);
   --input: oklch(0.92 0.01 260);
-  --ring: oklch(0.55 0.20 270);
+  --ring: oklch(0.55 0.2 270);
 
   /* Brand + semantic */
-  --brand-a: oklch(0.68 0.20 280);
+  --brand-a: oklch(0.68 0.2 280);
   --brand-b: oklch(0.72 0.18 195);
   --gain: oklch(0.62 0.18 145);
   --loss: oklch(0.62 0.22 25);
-  --bg-grad: radial-gradient(80% 60% at 50% -10%, color-mix(in oklab, var(--brand-a) 14%, transparent), transparent 60%),
-             radial-gradient(60% 50% at 100% 100%, color-mix(in oklab, var(--brand-b) 10%, transparent), transparent 60%);
+  --bg-grad:
+    radial-gradient(
+      80% 60% at 50% -10%,
+      color-mix(in oklab, var(--brand-a) 14%, transparent),
+      transparent 60%
+    ),
+    radial-gradient(
+      60% 50% at 100% 100%,
+      color-mix(in oklab, var(--brand-b) 10%, transparent),
+      transparent 60%
+    );
 }
 
 .dark {
@@ -78,26 +87,41 @@
   --secondary: oklch(0.23 0.03 265);
   --secondary-foreground: oklch(0.96 0.01 250);
   --muted: oklch(0.23 0.03 265);
-  --muted-foreground: oklch(0.70 0.03 260);
+  --muted-foreground: oklch(0.7 0.03 260);
   --accent: oklch(0.25 0.04 270);
   --accent-foreground: oklch(0.96 0.01 250);
   --destructive: oklch(0.65 0.22 25);
   --destructive-foreground: oklch(0.99 0 0);
-  --border: oklch(0.30 0.03 265 / 60%);
-  --input: oklch(0.30 0.03 265 / 60%);
+  --border: oklch(0.3 0.03 265 / 60%);
+  --input: oklch(0.3 0.03 265 / 60%);
   --ring: oklch(0.72 0.18 280);
 
   --brand-a: oklch(0.78 0.18 285);
-  --brand-b: oklch(0.80 0.16 195);
-  --gain: oklch(0.74 0.20 145);
-  --loss: oklch(0.70 0.22 25);
-  --bg-grad: radial-gradient(80% 60% at 50% -10%, color-mix(in oklab, var(--brand-a) 18%, transparent), transparent 60%),
-             radial-gradient(60% 50% at 100% 100%, color-mix(in oklab, var(--brand-b) 14%, transparent), transparent 60%);
+  --brand-b: oklch(0.8 0.16 195);
+  --gain: oklch(0.74 0.2 145);
+  --loss: oklch(0.7 0.22 25);
+  --bg-grad:
+    radial-gradient(
+      80% 60% at 50% -10%,
+      color-mix(in oklab, var(--brand-a) 18%, transparent),
+      transparent 60%
+    ),
+    radial-gradient(
+      60% 50% at 100% 100%,
+      color-mix(in oklab, var(--brand-b) 14%, transparent),
+      transparent 60%
+    );
 }
 
 @layer base {
-  * { border-color: var(--color-border); }
-  html, body, #root { height: 100%; }
+  * {
+    border-color: var(--color-border);
+  }
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
   body {
     background-color: var(--color-background);
     background-image: var(--bg-grad);
@@ -112,4 +136,3 @@
     border-radius: 4px;
   }
 }
-
