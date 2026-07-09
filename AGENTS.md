@@ -9,7 +9,7 @@ bun install
 bun run dev
 ```
 
-App listens on http://localhost:8080. Market data is proxied through `/api/vm/*` to VictoriaMetrics (`VM_UPSTREAM_URL`, default `https://vicmet.dandv.me` — a vmauth gateway that terminates TLS and forwards to VM).
+App listens on http://localhost:8080. The browser fetches market data directly from `VICMET_BASE` in `.env` (default `https://vicmet.dandv.me`, CORS-enabled vmauth gateway). Vite exposes it via `envPrefix: ["VITE_", "VICMET_"]`.
 
 ## Build
 
@@ -30,9 +30,4 @@ To build locally for inspection:
 bun run build:pages   # output in .output/public; base derived from repo name (GITHUB_REPOSITORY in CI, else /blind-pirate-trader/)
 ```
 
-Uses standard Vite + TanStack Start + Nitro (no Lovable tooling).
-
-## Session notes
-
-- 2026-06-17: Removed `@lovable.dev/vite-tanstack-config`, Lovable error reporting, and sandbox-only plugins. Replaced with direct Vite/TanStack/Nitro config. Fixed `@/hooks/useTheme` → `@/hooks/use-theme` import mismatch that broke builds.
-- 2026-06-17: Switched Pages deployment to GitHub Actions. Cleaned up a broken `gh-pages` branch (created by Cursor) that wrongly committed source + build output and left the working tree with source files deleted. Source was always safe on `main`. Note: `build:pages` does NOT emit `404.html` or `.nojekyll`; the workflow adds the SPA `404.html`. `.nojekyll` is unnecessary with the Actions deploy method (Jekyll never runs).
+Stack: Vite + TanStack Start. `nitro()` is in `vite.config.ts` because Start uses Nitro as its server/deploy build layer (SSR, server routes, adapters). This app's GitHub Pages path is SPA-only (`build:pages`), so Nitro's hosting adapters are unused in production; static files come from `.output/public`.

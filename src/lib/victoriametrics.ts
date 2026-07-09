@@ -1,13 +1,12 @@
 /**
  * VictoriaMetrics data layer for the trading sim.
- * All endpoints are CORS-enabled; the live test instance is hardcoded here.
+ * Browser talks to the CORS-enabled vmauth gateway directly (dev and Pages).
+ * Base URL comes from VICMET_BASE in `.env` (exposed via vite `envPrefix`).
  */
-
-/**
- * Routed through our same-origin server proxy at /api/vm/* in dev/Node deploy.
- * On static hosts (GitHub Pages), set VITE_VM_BASE to the VictoriaMetrics origin.
- */
-const VM_BASE = import.meta.env.VITE_VM_BASE ?? '/api/vm';
+const VICMET_BASE = import.meta.env.VICMET_BASE;
+if (!VICMET_BASE) {
+   throw new Error('VICMET_BASE is not set; add it to .env');
+}
 const EXCHANGE = 'kraken';
 
 export interface Candle {
@@ -60,21 +59,18 @@ const log = {
 async function vmFetch<T>(path: string, params: Record<string, string | number>): Promise<T> {
    const usp = new URLSearchParams();
    for (const [k, v] of Object.entries(params)) usp.set(k, String(v));
-   const url = `${VM_BASE}${path}?${usp.toString()}`;
+   const url = `${VICMET_BASE}${path}?${usp.toString()}`;
    let res: Response;
    try {
       res = await fetch(url, { method: 'GET' });
    } catch (e) {
       log.error('network error', url, e);
-      throw new Error(`Failed to reach VictoriaMetrics at ${VM_BASE}. Check your network.`);
+      throw new Error(`Failed to reach VictoriaMetrics at ${VICMET_BASE}. Check your network.`);
    }
    if (!res.ok) {
       const text = await res.text().catch(() => '');
-      const upstreamStatus = res.headers.get('x-vm-upstream-status');
-      log.error('http error', res.status, 'upstream=', upstreamStatus, url, '\nbody:', text);
-      throw new Error(
-         `VictoriaMetrics responded ${res.status}${upstreamStatus ? ` (upstream ${upstreamStatus})` : ''}: ${text}`,
-      );
+      log.error('http error', res.status, url, '\nbody:', text);
+      throw new Error(`VictoriaMetrics responded ${res.status}: ${text}`);
    }
    const json = (await res.json()) as { status: string; error?: string };
    if (json.status !== 'success') {

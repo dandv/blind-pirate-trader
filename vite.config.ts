@@ -14,6 +14,8 @@ const pagesBase = `/${repo ?? "blind-pirate-trader"}/`;
 
 export default defineConfig({
   base: isGitHubPages ? pagesBase : "/",
+  // Expose VICMET_BASE from .env to the browser (Vite's default is VITE_ only).
+  envPrefix: ["VITE_", "VICMET_"],
   css: {
     transformer: "lightningcss",
   },
