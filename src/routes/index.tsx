@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { Github } from "lucide-react";
 import { useCallback, useEffect, useReducer, useRef, useState } from "react";
 
 import { Chart } from "@/components/Chart";
@@ -19,16 +20,18 @@ import {
   type TickSource,
 } from "@/lib/victoriametrics";
 
+const REPO_URL = "https://github.com/dandv/blind-pirate-trader";
+
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "Blind Trader — Crypto Trading Sim" },
+      { title: "Blind Pirate Trader — Crypto Trading Sim" },
       {
         name: "description",
         content:
           "A blinded crypto trading simulator over real Kraken historical data. Buy, sell, fast-forward, and reveal the asset at the end.",
       },
-      { property: "og:title", content: "Blind Trader — Crypto Trading Sim" },
+      { property: "og:title", content: "Blind Pirate Trader — Crypto Trading Sim" },
       {
         property: "og:description",
         content:
@@ -408,7 +411,7 @@ function Index() {
         <div className="flex items-baseline gap-2">
           <h1 className="font-display text-lg font-bold tracking-tight sm:text-xl">
             <span className="bg-gradient-to-r from-[color:var(--brand-a)] to-[color:var(--brand-b)] bg-clip-text text-transparent">
-              Blind Trader
+              Blind Pirate Trader
             </span>
           </h1>
             <span className="hidden text-xs text-muted-foreground sm:inline">
@@ -419,7 +422,19 @@ function Index() {
                   : "Ready"}
             </span>
         </div>
-        <ThemeSelector value={theme} onChange={setTheme} />
+        <div className="flex items-center gap-2">
+          <a
+            href={REPO_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center justify-center rounded-full border border-border bg-card/60 p-2 text-muted-foreground transition-colors hover:text-foreground"
+            aria-label="View source on GitHub"
+            title="View source on GitHub"
+          >
+            <Github className="h-4 w-4" />
+          </a>
+          <ThemeSelector value={theme} onChange={setTheme} />
+        </div>
       </header>
 
       {state.error && (

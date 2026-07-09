@@ -1,4 +1,4 @@
-# Blind Trader
+# Blind Pirate Trader
 
 TanStack Start (React 19) crypto trading simulator using real Kraken tick data via VictoriaMetrics.
 
@@ -50,3 +50,13 @@ deno task ticks:test     # integration test against VICMET_URL_TEST
 Or from `ticks/`: `deno task --env-file=../.env collect` / `collect:trades` / `test`. See `ticks/README.md`.
 
 `:7357` is the local **test** VicMet only (`deno task ticks:vicmet`). Live ingest uses `VICMET_URL` from `.env`. `vicmet:ready` / `vicmet:test:ready` health-check `$VICMET_URL` and `$VICMET_URL_TEST`. Logger: `jsr:@dandv/timestamp-logger`.
+
+### Production VictoriaMetrics instances
+
+Local ports 11390 and 57003 (also 2035) are SSH tunnels to host `bt26` (`ControlPath=/tmp/ssh-bt26.sock`), each a single-node VM v1.143.0 run by user `vic` with `-deleteAuthKey` set (so `delete_series` must be run on bt26, extracting the key from `ps` there):
+
+- `:11390` — old instance (`~vic/bt-old-fin-old/vmetrix-ibmon_old`)
+- `:57003` — current instance (`~vic/vmetrix-stoqey`); kraken/trades ticks live here
+- `:2035` — `~vic/vicmet_ibmon-ws`
+
+2026-07-09: migrated `{exchange="kraken",source="trades"}` history (2 series: `ticks_last`/`ticks_lastSize` BTC/USD, 1,212,000 samples, Jun 9–20) from :11390 to :57003 via native export/import; checksums verified, then deleted from :11390. Backup: `.my-scratch/kraken_trades_export.bin`. The 66-min seam gap (Jun 20 19:12–20:18 PDT, from when the collector switched instances) was filled from Kraken REST `/Trades` (993 trades) via `.my-scratch/fill_gap_btcusd.ts`; BTC/USD is now continuous on :57003. Note: these VMs run without `-dedup.minScrapeInterval`, so re-importing overlapping ranges creates duplicate samples that double-count in `count_over_time`/`sum_over_time` — always import with exclusive bounds.

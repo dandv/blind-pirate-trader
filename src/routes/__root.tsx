@@ -73,13 +73,13 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "Blind Trader — Crypto Trading Sim" },
+      { title: "Blind Pirate Trader — Crypto Trading Sim" },
       {
         name: "description",
         content:
           "A blinded crypto trading simulator over real Kraken historical data. Buy, sell, fast-forward, and reveal the asset at the end.",
       },
-      { property: "og:title", content: "Blind Trader — Crypto Trading Sim" },
+      { property: "og:title", content: "Blind Pirate Trader — Crypto Trading Sim" },
       {
         property: "og:description",
         content:
