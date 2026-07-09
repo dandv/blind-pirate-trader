@@ -57,7 +57,10 @@ export default defineConfig({
         },
       },
     }),
-    nitro(),
+    // Under Deno, Nitro defaults to `deno-server`, which hangs after SPA
+    // prerender shutdown. GitHub Pages only needs `.output/public`, so force
+    // the node preset for that build path.
+    nitro(isGitHubPages ? { preset: "node" } : {}),
     viteReact(),
   ],
 });

@@ -20,12 +20,11 @@ Trade one of Kraken's top crypto/USD pairs over a real historical window — but
 ## Development
 
 ```bash
-bun install
-bun run dev
+deno install
+deno task dev
 ```
 
-Then navigate to http://localhost:8081.
-
+Then navigate to http://localhost:8080.
 
 ## Kraken API usage
 

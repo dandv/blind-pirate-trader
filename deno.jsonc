@@ -1,0 +1,90 @@
+{
+  "nodeModulesDir": "auto",
+  // Vite's Deno.serve used to abort request.signal on every successful response;
+  // opt into the corrected behavior (becomes default in a future Deno release).
+  "unstable": ["no-legacy-abort"],
+  // 24h supply-chain guard. Deno's default is P1D when unset; keep it explicit.
+  "minimumDependencyAge": "P1D",
+  "tasks": {
+    "dev": {
+      "description": "Start Vite/TanStack Start dev server on :8080",
+      // Flag also on the CLI: deno.jsonc `unstable` alone does not silence
+      // the warning for `npm:vite`'s Deno.serve (Vite may re-exec).
+      "command": "deno run -A --unstable-no-legacy-abort npm:vite dev"
+    },
+    "build": {
+      "description": "Production Vite build",
+      "command": "deno run -A --unstable-no-legacy-abort npm:vite build"
+    },
+    "build:pages": {
+      "description": "SPA build for GitHub Pages (base path from GITHUB_REPOSITORY)",
+      "command": "GITHUB_PAGES=true deno run -A --unstable-no-legacy-abort npm:vite build"
+    },
+    "build:dev": {
+      "description": "Vite build in development mode",
+      "command": "deno run -A --unstable-no-legacy-abort npm:vite build --mode development"
+    },
+    "preview": {
+      "description": "Preview the production build",
+      "command": "deno run -A --unstable-no-legacy-abort npm:vite preview"
+    },
+    "lint": {
+      "description": "Run ESLint",
+      "command": "deno run -A npm:eslint src/"
+    },
+    "format": {
+      "description": "Format with Prettier",
+      "command": "deno run -A npm:prettier --write ."
+    },
+    "ticks:vicmet": {
+      "description": "Start local VicMet on :7357 (foreground; test instance)",
+      "command": "deno task --env-file --cwd=ticks vicmet"
+    },
+    "ticks": {
+      "description": "Collect Kraken ticks into VICMET_URL (requires VicMet already running)",
+      "command": "deno task --env-file --cwd=ticks collect"
+    },
+    "ticks:test": {
+      "description": "Run ticks integration test against VICMET_URL_TEST (requires test VicMet already running)",
+      "command": "deno task --env-file --cwd=ticks test"
+    }
+  },
+  "imports": {
+    "@radix-ui/react-select": "npm:@radix-ui/react-select@^2.2.6",
+    "@radix-ui/react-slot": "npm:@radix-ui/react-slot@^1.2.4",
+    "@radix-ui/react-tooltip": "npm:@radix-ui/react-tooltip@^1.2.8",
+    "@tailwindcss/vite": "npm:@tailwindcss/vite@^4.2.1",
+    "@tanstack/query-core": "npm:@tanstack/query-core@^5.83.0",
+    "@tanstack/react-query": "npm:@tanstack/react-query@^5.83.0",
+    "@tanstack/react-router": "npm:@tanstack/react-router@^1.168.25",
+    "@tanstack/react-start": "npm:@tanstack/react-start@^1.167.50",
+    "canvas-confetti": "npm:canvas-confetti@^1.9.4",
+    "class-variance-authority": "npm:class-variance-authority@^0.7.1",
+    "clsx": "npm:clsx@^2.1.1",
+    "lightweight-charts": "npm:lightweight-charts@^5.2.0",
+    "lucide-react": "npm:lucide-react@^0.575.0",
+    "react": "npm:react@^19.2.0",
+    "react-dom": "npm:react-dom@^19.2.0",
+    "tailwind-merge": "npm:tailwind-merge@^3.5.0",
+    "tailwindcss": "npm:tailwindcss@^4.2.1",
+    "tw-animate-css": "npm:tw-animate-css@^1.3.4",
+    "vite-tsconfig-paths": "npm:vite-tsconfig-paths@^6.0.2",
+    "@eslint/js": "npm:@eslint/js@^9.32.0",
+    "@types/canvas-confetti": "npm:@types/canvas-confetti@^1.9.0",
+    "@types/node": "npm:@types/node@^22.16.5",
+    "@types/react": "npm:@types/react@^19.2.0",
+    "@types/react-dom": "npm:@types/react-dom@^19.2.0",
+    "@vitejs/plugin-react": "npm:@vitejs/plugin-react@^5.0.4",
+    "eslint": "npm:eslint@^9.32.0",
+    "eslint-config-prettier": "npm:eslint-config-prettier@^10.1.1",
+    "eslint-plugin-prettier": "npm:eslint-plugin-prettier@^5.2.6",
+    "eslint-plugin-react-hooks": "npm:eslint-plugin-react-hooks@^5.2.0",
+    "eslint-plugin-react-refresh": "npm:eslint-plugin-react-refresh@^0.4.20",
+    "globals": "npm:globals@^15.15.0",
+    "nitro": "npm:nitro@3.0.260603-beta",
+    "prettier": "npm:prettier@^3.7.3",
+    "typescript": "npm:typescript@^5.8.3",
+    "typescript-eslint": "npm:typescript-eslint@^8.56.1",
+    "vite": "npm:vite@^7.3.1"
+  }
+}

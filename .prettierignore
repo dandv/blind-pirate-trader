@@ -1,6 +1,4 @@
 node_modules
 dist
 .output
-package-lock.json
-bun.lock
 routeTree.gen.ts
