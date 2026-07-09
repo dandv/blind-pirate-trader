@@ -1,0 +1,465 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>BTC/USD: REST trades vs WS tick overlap</title>
+  <meta
+    name="description"
+    content="Overlap, density, and gap comparison of Kraken BTC/USD ticks from REST /Trades (source=trades) vs unlabeled WS on VictoriaMetrics."
+  />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.9/dist/chart.umd.min.js" defer></script>
+  <style>
+    :root {
+      color-scheme: light dark;
+      --bg: #0f1115;
+      --fg: #e8eaed;
+      --muted: #9aa0a6;
+      --card: #1a1d24;
+      --border: #2a2f3a;
+      --accent: #5b9fd4;
+      --ok: #3d9a6a;
+      --warn: #c9a227;
+      --neutral: #8b919a;
+      --font: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+      --mono: "IBM Plex Mono", ui-monospace, monospace;
+    }
+    @media (prefers-color-scheme: light) {
+      :root {
+        --bg: #f6f7f9;
+        --fg: #1a1d24;
+        --muted: #5f6368;
+        --card: #ffffff;
+        --border: #d8dce3;
+      }
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: var(--font);
+      background: var(--bg);
+      color: var(--fg);
+      line-height: 1.5;
+    }
+    main {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 2rem 1.25rem 4rem;
+    }
+    h1 { font-size: 1.75rem; margin: 0 0 0.35rem; letter-spacing: -0.02em; }
+    h2 { font-size: 1.2rem; margin: 2rem 0 0.5rem; }
+    .sub { color: var(--muted); font-size: 0.95rem; margin: 0 0 1.25rem; }
+    .caption { color: var(--muted); font-size: 0.75rem; margin: 0.35rem 0 1rem; }
+    .callout {
+      border: 1px solid var(--border);
+      border-left-width: 4px;
+      border-radius: 8px;
+      padding: 0.85rem 1rem;
+      margin: 1rem 0;
+      background: var(--card);
+    }
+    .callout.ok { border-left-color: var(--ok); }
+    .callout.info { border-left-color: var(--accent); }
+    .callout.warn { border-left-color: var(--warn); }
+    .callout strong { display: block; margin-bottom: 0.25rem; }
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 0.75rem;
+      margin: 1rem 0;
+    }
+    @media (max-width: 720px) {
+      .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    }
+    .stat {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 0.75rem 0.9rem;
+    }
+    .stat .label { color: var(--muted); font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.04em; }
+    .stat .value { font-size: 1.35rem; font-weight: 650; margin-top: 0.15rem; font-variant-numeric: tabular-nums; }
+    .grid2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1rem;
+    }
+    @media (max-width: 800px) {
+      .grid2 { grid-template-columns: 1fr; }
+    }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      overflow: hidden;
+    }
+    .card h3 {
+      margin: 0;
+      padding: 0.7rem 0.9rem;
+      font-size: 0.85rem;
+      border-bottom: 1px solid var(--border);
+      font-weight: 600;
+    }
+    .card .body { padding: 0.75rem 0.9rem; }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.85rem;
+    }
+    th, td {
+      text-align: left;
+      padding: 0.4rem 0.35rem;
+      border-bottom: 1px solid var(--border);
+      vertical-align: top;
+    }
+    th { color: var(--muted); font-weight: 550; font-size: 0.75rem; }
+    .kv { display: flex; justify-content: space-between; gap: 1rem; padding: 0.3rem 0; font-size: 0.9rem; }
+    .kv span:first-child { color: var(--muted); }
+    .chart-wrap {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 0.75rem;
+      margin: 0.75rem 0 0.25rem;
+      height: 280px;
+    }
+    .chart-wrap.short { height: 200px; }
+    hr {
+      border: 0;
+      border-top: 1px solid var(--border);
+      margin: 1.75rem 0;
+    }
+    footer {
+      margin-top: 2.5rem;
+      color: var(--muted);
+      font-size: 0.8rem;
+    }
+    code { font-family: var(--mono); font-size: 0.9em; }
+    a { color: var(--accent); }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>BTC/USD: trades vs unlabeled WS</h1>
+    <p class="sub">
+      VicMet :57003 · <code>ticks_last</code> · <code>exchange=kraken</code> ·
+      overlap 2026-06-09T10:26Z → 2026-07-08T12:12Z (~29.1 d) · queried 2026-07-09
+    </p>
+
+    <div class="callout ok">
+      <strong>Same tape, different sample multiplicity</strong>
+      Unique millisecond timestamps overlap 99.9% (778,794 shared). The ~1.94× higher
+      trades sample count is same-ms bursts (REST keeps every print; unlabeled WS keeps
+      one value per ms). Non-zero gap histograms match almost tick-for-tick.
+    </div>
+
+    <div class="stats">
+      <div class="stat"><div class="label">trades samples</div><div class="value">1.52M</div></div>
+      <div class="stat"><div class="label">WS samples (no source)</div><div class="value">779k</div></div>
+      <div class="stat"><div class="label">Unique ts overlap</div><div class="value">99.9%</div></div>
+      <div class="stat"><div class="label">Sample ratio</div><div class="value">1.94×</div></div>
+    </div>
+
+    <div class="grid2">
+      <div class="card">
+        <h3>Coverage on :57003</h3>
+        <div class="body">
+          <table>
+            <thead>
+              <tr><th>Series</th><th>Labels</th><th>First</th><th>Last (at query)</th></tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>REST backfill</td>
+                <td><code>source="trades"</code></td>
+                <td>2026-06-09 10:26Z</td>
+                <td>2026-07-08 12:12Z</td>
+              </tr>
+              <tr>
+                <td>Long-run WS</td>
+                <td>no <code>source</code> label</td>
+                <td>2026-06-03 14:25Z</td>
+                <td>2026-07-09 11:05Z (live)</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="card">
+        <h3>Timestamp set compare</h3>
+        <div class="body">
+          <div class="kv"><span>trades unique ms</span><span>779,733</span></div>
+          <div class="kv"><span>WS unique ms</span><span>779,446</span></div>
+          <div class="kv"><span>Intersection</span><span>778,794</span></div>
+          <div class="kv"><span>trades-only / WS-only</span><span>939 / 652</span></div>
+          <div class="kv"><span>trades mean copies / ms</span><span>1.95</span></div>
+        </div>
+      </div>
+    </div>
+
+    <hr />
+
+    <h2>Daily tick density</h2>
+    <p class="sub" style="margin-bottom:0.25rem">
+      Samples per UTC day in the overlap window. Ratio stays ~1.8–2.1 every day.
+    </p>
+    <div class="chart-wrap"><canvas id="dailyDensity"></canvas></div>
+    <p class="caption">
+      Source: VicMet :57003 <code>count_over_time(ticks_last[1h])</code> rolled to days ·
+      Jun 9–Jul 7 (Jul 8 partial omitted from chart)
+    </p>
+
+    <div class="chart-wrap short"><canvas id="dailyRatio"></canvas></div>
+    <p class="caption">Daily sample-count ratio (not unique-timestamp ratio). Mean ≈ 1.94×.</p>
+
+    <div class="stats">
+      <div class="stat"><div class="label">trades / min</div><div class="value">36.3</div></div>
+      <div class="stat"><div class="label">WS / min</div><div class="value">18.7</div></div>
+      <div class="stat"><div class="label">trades median / h</div><div class="value">1,867</div></div>
+      <div class="stat"><div class="label">WS median / h</div><div class="value">992</div></div>
+    </div>
+
+    <hr />
+
+    <h2>Inter-arrival gaps</h2>
+    <p class="sub" style="margin-bottom:0.25rem">
+      Consecutive timestamp diffs on the overlap export. Zero-ms gaps (737k) exist only on
+      trades — same-ms multi-print bursts. Chart: non-zero buckets only.
+    </p>
+
+    <div class="stats">
+      <div class="stat"><div class="label">trades gap p50</div><div class="value">2 ms</div></div>
+      <div class="stat"><div class="label">WS gap p50</div><div class="value">1.5 s</div></div>
+      <div class="stat"><div class="label">trades / WS gap p95</div><div class="value">8.6 / 12.2 s</div></div>
+      <div class="stat"><div class="label">trades / WS gap p99</div><div class="value">17.9 / 22.3 s</div></div>
+    </div>
+
+    <div class="callout info">
+      <strong>Why p50 differs so much</strong>
+      trades p50 is dominated by 0–2 ms same-burst spacing. Strip 0 ms dups and the
+      remaining gap shape matches WS. Quiet-tape tails (≥30 s) are essentially identical:
+      2,619 vs 2,636 events.
+    </div>
+
+    <div class="chart-wrap"><canvas id="gapBuckets"></canvas></div>
+    <p class="caption">
+      Source: <code>/api/v1/export</code> <code>ticks_last</code> · 1.52M trades + 779k WS samples · overlap window
+    </p>
+
+    <div class="grid2">
+      <div class="card">
+        <h3>Largest trades gaps</h3>
+        <div class="body">
+          <table>
+            <thead><tr><th>Gap</th><th>From → To (UTC)</th><th>WS in gap?</th></tr></thead>
+            <tbody>
+              <tr><td>21.7 min</td><td>06-11 16:51 → 17:12</td><td>578 WS ticks (backfill hole)</td></tr>
+              <tr><td>5.2 min</td><td>06-18 07:01 → 07:06</td><td>0 (quiet tape)</td></tr>
+              <tr><td>5.1 min</td><td>06-26 07:01 → 07:06</td><td>0 (quiet tape)</td></tr>
+              <tr><td>112 s</td><td>07-05 05:17 → 05:19</td><td>0</td></tr>
+              <tr><td>92 s</td><td>07-05 04:49 → 04:51</td><td>0</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="card">
+        <h3>Largest WS gaps</h3>
+        <div class="body">
+          <table>
+            <thead><tr><th>Gap</th><th>From → To (UTC)</th><th>trades in gap?</th></tr></thead>
+            <tbody>
+              <tr><td>5.3 min</td><td>06-18 07:01 → 07:06</td><td>12 trades</td></tr>
+              <tr><td>5.2 min</td><td>06-26 07:01 → 07:06</td><td>1 trade</td></tr>
+              <tr><td>136 s</td><td>06-22 03:35 → 03:37</td><td>55 trades</td></tr>
+              <tr><td>112 s</td><td>07-05 05:17 → 05:19</td><td>0</td></tr>
+              <tr><td>92 s</td><td>07-05 04:49 → 04:51</td><td>0</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <div class="callout warn">
+      <strong>Cross-fill of ≥60 s holes</strong>
+      Of 68 WS gaps ≥60 s, only 4 contain any trades print (96 trades total). Of 67 trades
+      gaps ≥60 s, only 1 contains WS (the Jun 11 21.7 min hole). Long quiet periods are
+      real market silence shared by both feeds, not collector dropouts — except that one
+      REST backfill seam.
+    </div>
+
+    <hr />
+
+    <h2>Takeaways</h2>
+    <div class="card">
+      <div class="body">
+        <table>
+          <thead><tr><th>Question</th><th>Answer</th></tr></thead>
+          <tbody>
+            <tr>
+              <td>Do they overlap?</td>
+              <td>Yes — full trades window sits inside the unlabeled WS series on :57003.</td>
+            </tr>
+            <tr>
+              <td>Density?</td>
+              <td>trades ~36/min vs WS ~19/min raw samples; unique-ms rates are essentially equal.</td>
+            </tr>
+            <tr>
+              <td>Gaps?</td>
+              <td>Non-zero gap distributions match. One REST hole (~22 min on Jun 11); two shared ~5 min quiet windows.</td>
+            </tr>
+            <tr>
+              <td><code>source</code> label?</td>
+              <td>Long-run WS has no <code>source=</code> label (legacy). New <code>collect_ws</code> writes <code>source=ws</code>.</td>
+            </tr>
+            <tr>
+              <td>5s OHLCV for the game?</td>
+              <td>Same unique timestamps → same sparse 5s bars. Extra same-ms trades prints do not fill empty bars.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <footer>
+      Static snapshot from the Blind Pirate Trader tick collectors.
+      Live game: <a href="../../">Blind Trader</a>.
+      Method notes live in <code>ticks/README.md</code>.
+    </footer>
+  </main>
+
+  <script>
+    const DAY_CATS = [
+      "06-09", "06-10", "06-11", "06-12", "06-13", "06-14", "06-15", "06-16", "06-17", "06-18",
+      "06-19", "06-20", "06-21", "06-22", "06-23", "06-24", "06-25", "06-26", "06-27", "06-28",
+      "06-29", "06-30", "07-01", "07-02", "07-03", "07-04", "07-05", "07-06", "07-07",
+    ];
+    const DAILY_TRADES = [
+      40826, 63434, 61099, 56293, 33133, 39240, 65508, 51619, 59234, 56078,
+      43198, 32570, 32732, 49044, 52503, 75823, 76099, 70019, 41476, 38121,
+      58284, 57497, 62919, 58820, 47870, 34801, 31907, 56786, 34868,
+    ];
+    const DAILY_WS = [
+      21763, 32064, 31702, 30024, 17727, 19719, 31595, 27039, 30481, 29408,
+      23274, 18131, 16403, 25195, 25478, 37767, 37004, 37421, 20754, 19442,
+      29602, 29446, 33153, 30534, 25215, 17950, 16192, 29804, 17905,
+    ];
+    const DAILY_RATIO = DAILY_TRADES.map((t, i) => Math.round((t / DAILY_WS[i]) * 100) / 100);
+    const GAP_CATS = ["<100ms", "100ms–1s", "1–2s", "2–5s", "5–10s", "10–30s", "30–60s", "1–5m", "5–15m", "≥15m"];
+    const GAP_TRADES = [129682, 193756, 115196, 179115, 103718, 55646, 2552, 64, 2, 1];
+    const GAP_WS = [129539, 193688, 115172, 179060, 103651, 55699, 2568, 66, 2, 0];
+
+    function cssVar(name, fallback) {
+      return getComputedStyle(document.documentElement).getPropertyValue(name).trim() || fallback;
+    }
+
+    function boot() {
+      if (typeof Chart === "undefined") {
+        setTimeout(boot, 50);
+        return;
+      }
+      const fg = cssVar("--fg", "#e8eaed");
+      const muted = cssVar("--muted", "#9aa0a6");
+      const accent = cssVar("--accent", "#5b9fd4");
+      const neutral = cssVar("--neutral", "#8b919a");
+      const warn = cssVar("--warn", "#c9a227");
+      Chart.defaults.color = muted;
+      Chart.defaults.borderColor = cssVar("--border", "#2a2f3a");
+      Chart.defaults.font.family = cssVar("--font", "system-ui");
+
+      new Chart(document.getElementById("dailyDensity"), {
+        type: "line",
+        data: {
+          labels: DAY_CATS,
+          datasets: [
+            {
+              label: "source=trades",
+              data: DAILY_TRADES,
+              borderColor: accent,
+              backgroundColor: accent + "33",
+              fill: true,
+              tension: 0.25,
+              pointRadius: 0,
+            },
+            {
+              label: "WS (no source)",
+              data: DAILY_WS,
+              borderColor: neutral,
+              backgroundColor: neutral + "22",
+              fill: true,
+              tension: 0.25,
+              pointRadius: 0,
+            },
+          ],
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { labels: { color: fg } },
+            title: { display: true, text: "Samples per UTC day", color: fg, font: { size: 13 } },
+          },
+          scales: {
+            x: { title: { display: true, text: "Day (UTC, MM-DD)" } },
+            y: { title: { display: true, text: "Samples / day" }, beginAtZero: true },
+          },
+        },
+      });
+
+      new Chart(document.getElementById("dailyRatio"), {
+        type: "bar",
+        data: {
+          labels: DAY_CATS,
+          datasets: [{
+            label: "trades / WS ratio",
+            data: DAILY_RATIO,
+            backgroundColor: warn + "cc",
+            borderColor: warn,
+            borderWidth: 1,
+          }],
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { display: false },
+            title: { display: true, text: "Daily sample-count ratio", color: fg, font: { size: 13 } },
+            annotation: undefined,
+          },
+          scales: {
+            x: { title: { display: true, text: "Day (UTC)" } },
+            y: {
+              title: { display: true, text: "Ratio" },
+              min: 1.5,
+              max: 2.2,
+            },
+          },
+        },
+      });
+
+      new Chart(document.getElementById("gapBuckets"), {
+        type: "bar",
+        data: {
+          labels: GAP_CATS,
+          datasets: [
+            { label: "trades", data: GAP_TRADES, backgroundColor: accent + "cc" },
+            { label: "WS (no source)", data: GAP_WS, backgroundColor: neutral + "cc" },
+          ],
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { labels: { color: fg } },
+            title: { display: true, text: "Non-zero inter-arrival gap buckets", color: fg, font: { size: 13 } },
+          },
+          scales: {
+            x: { title: { display: true, text: "Gap size" } },
+            y: { title: { display: true, text: "Count" }, beginAtZero: true },
+          },
+        },
+      });
+    }
+    boot();
+  </script>
+</body>
+</html>

@@ -5,16 +5,11 @@
  * last+lastSize).
  *
  * Pairs are ranked by approximate notional volume (24h base volume * last price) among
- * online /USD pairs that have leverage enabled and are not stablecoin bases (USDT, USDC, etc.).
- * We follow the official guidance for WS symbols: pull "wsname" from the REST /0/public/AssetPairs response
- * (https://support.kraken.com/articles/360000920306-api-symbols-and-tickers). Two small overrides are applied:
- * - project-canonical label BTC instead of XBT
- * - DOGE instead of XDG because the AssetPairs endpoint incorrectly returns the wsname for XDGUSD as "XDG/USD",
- *   which fails for WS - `{"error":"Currency pair not supported XDG/USD","method":"subscribe","success":false,"symbol":"XDG/USD"}`
- * Falls back to BTC, ETH, SOL /USD on any discovery error.
+ * online /USD pairs that have leverage enabled and are not stablecoin bases (USDT, USDC, etc.)
+ * — see {@linkcode ./discover_pairs.ts}.
  *
- * Stores to VictoriaMetrics using the Tick structure and dumpTicks path, with `exchange: 'kraken'` label
- * (e.g. symbol="BTC/USD", exchange="kraken").
+ * Stores to VictoriaMetrics using the Tick structure and dumpTicks path, with
+ * `exchange: 'kraken'` and `source: 'ws'` labels (e.g. symbol="BTC/USD", exchange="kraken", source="ws").
  *
  * Uses native Deno WebSocket (no extra deps). Subscribes to both `ticker`
  * (event_trigger=trades, snapshot) and `trade` (snapshot) channels so that:
@@ -49,6 +44,7 @@
  */
 
 import { Logger as TimestampLogger } from "@dandv/timestamp-logger";
+import { DEFAULT_PAIRS, discoverTopPairs } from "./discover_pairs.ts";
 import { VicMet, type Logger } from "./VicMet.ts";
 
 /** Broker-independent market data tick. */
@@ -60,26 +56,10 @@ export interface Tick {
   askSize?: number;
   last?: number;
   lastSize?: number;
-  /** Total volume traded in this tick window, as opposed to {@linkcode lastSize}. */
-  lastVol?: number;
 }
 
 export interface TickWithSymbol extends Tick {
   symbol?: string;
-}
-
-/** Kraken REST /AssetPairs entry (fields we use). */
-interface AssetPairEntry {
-  status?: string;
-  wsname?: string;
-  leverage_buy?: number[];
-}
-
-/** Kraken REST /Ticker entry (fields we use). */
-interface TickerEntry {
-  v?: [string, string];
-  c?: [string, string];
-  o?: string;
 }
 
 /** Kraken WS v2 ticker channel update. */
@@ -129,29 +109,12 @@ const LOGS_DIR = `${MODULE_DIR}/logs`;
 
 const LOG_VERSION = "v1.1";
 const EXCHANGE_ID = "kraken";
+const SOURCE_ID = "ws";
 
 const SNAPSHOT_PATH = `${LOGS_DIR}/.collect_ws_last_snapshot.json`;
 const FLUSH_INTERVAL_MS = 15_000;
 const ACCEPTABLE_MD_GAP_MS = 30_000;
 const LOG_PRICES_INTERVAL_MS = 10 * 60_000;
-
-const DEFAULT_PAIRS = ["BTC/USD", "ETH/USD", "SOL/USD"] as const;
-const TOP_N = 20;
-const STABLE_BASES = new Set([
-  "USDT",
-  "USDC",
-  "DAI",
-  "USDE",
-  "TUSD",
-  "BUSD",
-  "GUSD",
-  "FDUSD",
-  "PYUSD",
-  "USDS",
-  "RLUSD",
-  "USD",
-  "USDD",
-]);
 
 let PAIRS: readonly string[] = DEFAULT_PAIRS;
 type Pair = string;
@@ -168,64 +131,11 @@ let pingTimer: ReturnType<typeof setInterval> | undefined;
 
 // ── Helpers ──────────────────────────────────────────────────────────
 
-async function discoverTopPairs(limit: number = TOP_N): Promise<string[]> {
-  try {
-    const apRes = await fetch("https://api.kraken.com/0/public/AssetPairs");
-    if (!apRes.ok) throw new Error(`AssetPairs ${apRes.status}`);
-    const ap = await apRes.json();
-
-    const metaByKey: Record<string, { ws: string; lev: number[] }> = {};
-    // Official way to get the WS symbol for a pair: use the "wsname" field returned by the
-    // REST /AssetPairs endpoint. See https://support.kraken.com/articles/360000920306-api-symbols-and-tickers
-    const WS_SYMBOL_OVERRIDES: Record<string, string> = {
-      "XBT/USD": "BTC/USD", // project convention (canonical symbology prefers BTC)
-      "XDG/USD": "DOGE/USD", // WS v2 rejects AssetPairs' incorrect "XDG/USD" wsname
-    };
-    const apResult = (ap.result ?? {}) as Record<string, AssetPairEntry>;
-    for (const [key, e] of Object.entries(apResult)) {
-      if (e?.status !== "online") continue;
-      let wsName = String(e.wsname || "");
-      wsName = WS_SYMBOL_OVERRIDES[wsName] ?? wsName;
-      if (!wsName.endsWith("/USD")) continue;
-      metaByKey[key] = {
-        ws: wsName,
-        lev: Array.isArray(e.leverage_buy) ? e.leverage_buy : [],
-      };
-    }
-
-    const tkRes = await fetch("https://api.kraken.com/0/public/Ticker");
-    if (!tkRes.ok) throw new Error(`Ticker ${tkRes.status}`);
-    const tk = await tkRes.json();
-
-    const cands: Array<{ symbol: string; notional: number }> = [];
-    const tkResult = (tk.result ?? {}) as Record<string, TickerEntry>;
-    for (const [key, t] of Object.entries(tkResult)) {
-      const m = metaByKey[key];
-      if (!m || m.lev.length === 0) continue;
-      const base = m.ws.split("/")[0];
-      if (STABLE_BASES.has(base)) continue;
-      const vol = parseFloat(t?.v?.[1] ?? "0");
-      const px = parseFloat(t?.c?.[0] ?? t?.o ?? "0");
-      if (!(vol > 0 && px > 0)) continue;
-      cands.push({ symbol: m.ws, notional: vol * px });
-    }
-
-    cands.sort((a, b) => b.notional - a.notional);
-    const top = cands.slice(0, limit).map((c) => c.symbol);
-    return top.length ? top : [];
-  } catch (e) {
-    // Discovery is best-effort; caller falls back to DEFAULT_PAIRS.
-    console.warn("discoverTopPairs failed:", e instanceof Error ? e.message : e);
-    return [];
-  }
-}
-
-
 async function flushData(vm: VicMet, logger: Logger): Promise<void> {
   let tickCount = 0;
   if (ticks.length) {
     try {
-      tickCount = await vm.dumpTicks({ exchange: EXCHANGE_ID, ticks });
+      tickCount = await vm.dumpTicks({ exchange: EXCHANGE_ID, source: SOURCE_ID, ticks });
       if (tickCount > 0) {
         const now = Date.now();
         const gapMs = now - lastFlushWithData;

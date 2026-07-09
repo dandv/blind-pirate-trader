@@ -1,15 +1,20 @@
 import { Button } from "@/components/ui/button";
+import type { TickSource } from "@/lib/victoriametrics";
 
 export function GameIntro({
   onStart,
   loading,
   error,
+  tickSource,
+  onTickSource,
 }: {
   onStart: () => void;
   loading: boolean;
   prepared?: boolean;
   preparing?: boolean;
   error: string | null;
+  tickSource: TickSource;
+  onTickSource: (s: TickSource) => void;
 }) {
   return (
     <div className="fixed inset-0 z-30 flex items-center justify-center bg-background/85 backdrop-blur-sm">
@@ -34,6 +39,28 @@ export function GameIntro({
           <Rule>End any time, or play to the end of the series.</Rule>
           <Rule>The asset is revealed at the end with full P&L.</Rule>
         </ul>
+
+        <div className="mt-4 flex items-center justify-center gap-2 text-sm">
+          <span className="text-muted-foreground">Tick source</span>
+          <div className="inline-flex overflow-hidden rounded-md border border-border">
+            {(["trades", "ws"] as const).map((s) => (
+              <button
+                key={s}
+                type="button"
+                className={
+                  "px-3 py-1 text-xs font-medium " +
+                  (tickSource === s
+                    ? "bg-secondary text-foreground"
+                    : "text-muted-foreground hover:text-foreground")
+                }
+                onClick={() => onTickSource(s)}
+                disabled={loading}
+              >
+                {s === "trades" ? "REST trades" : "WS"}
+              </button>
+            ))}
+          </div>
+        </div>
 
         {error && (
           <div className="mt-4 rounded-md border border-[color:var(--loss)]/40 bg-[color:var(--loss)]/10 p-3 text-sm text-[color:var(--loss)]">

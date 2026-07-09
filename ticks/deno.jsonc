@@ -7,7 +7,7 @@
     "vicmet:ready": {
       "description": "No-op if VicMet is healthy at VICMET_URL; otherwise fail with a hint",
       // Pass env via: deno task --env-file=../.env vicmet:ready
-      "command": "curl -sf $VICMET_URL/health || (echo VicMet not running at $VICMET_URL — set VICMET_URL in .env and ensure that instance is up && false)"
+      "command": "curl -sf $VICMET_URL/health || (echo \"VicMet not running at $VICMET_URL — set VICMET_URL in .env and ensure that instance is up\" && false)"
     },
     "vicmet:test:ready": {
       "description": "No-op if VicMet is healthy at VICMET_URL_TEST; otherwise fail with a hint",
@@ -19,6 +19,12 @@
       "dependencies": ["vicmet:ready"],
       // Pass env via: deno task --env-file=../.env collect
       "command": "deno run --allow-net=api.kraken.com,ws.kraken.com,127.0.0.1,localhost --allow-env=VICMET_URL --allow-read=./logs,. --allow-write=./logs --allow-sys=homedir collect_ws.ts"
+    },
+    "collect:trades": {
+      "description": "Backfill raw trades from Kraken /Trades (1-month lookback; needs VICMET_URL)",
+      "dependencies": ["vicmet:ready"],
+      // Pass env via: deno task --env-file=../.env collect:trades
+      "command": "deno run --allow-net=api.kraken.com,127.0.0.1,localhost --allow-env=VICMET_URL --allow-read=./logs,. --allow-write=./logs --allow-sys=homedir collect_trades.ts"
     },
     "test": {
       "description": "Integration test: live Kraken WS → VicMet at VICMET_URL_TEST (requires VicMet already running)",

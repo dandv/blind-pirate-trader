@@ -30,20 +30,19 @@ Then navigate to http://localhost:8080.
 
 The game was developed as a preliminary exploration of Kraken's API suitability for consumption by AI agents.
 
-Price data was collected via the [Spot WebSocket](https://docs.kraken.com/exchange/api-reference/spot-websocket) API and persisted into a VictoriaMetrics instance (`ticks/collect_ws.ts`):
+Price data is collected via Kraken Spot APIs and persisted into VictoriaMetrics (see [ticks](ticks/README.md)):
 
-- `ticker` channel for bid/ask/bidSize/askSize
-- `trades` channel for last/lastSize
+- Live: WebSocket `ticker` (bid/ask sizes) + `trade` (last/lastSize), labeled `source=ws`
+- Historical: REST `/Trades` paginated raw-trade backfill (`source=trades`); game builds 5s OHLCV in VicMet
 
-The data ingestion pipeline collected the top 20 traded /USD spot pairs by 24h volume, dynamically discovered at startup via Kraken public REST /Ticker + /AssetPairs. Pairs were ranked by approximate notional volume (24h base volume * last price) among online /USD pairs that have leverage enabled and are not stablecoin bases (USDT, USDC, etc.).
+The data ingestion pipeline collects the top 20 traded /USD spot pairs by 24h volume, dynamically discovered at startup via Kraken public REST /Ticker + /AssetPairs. Pairs were ranked by approximate notional volume (24h base volume * last price) among online /USD pairs that have leverage enabled and are not stablecoin bases (USDT, USDC, etc.).
 
 To re-run collection locally:
 
 ```bash
 # Point VICMET_URL in .env at your ingest instance, then:
-deno task ticks
-# or:
-cd ticks && deno task --env-file=../.env collect
+deno task ticks          # live WS
+deno task ticks:trades   # 1-month raw-trade backfill from REST Trades
 ```
 
 ## API feedback

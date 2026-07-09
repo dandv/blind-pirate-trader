@@ -133,16 +133,19 @@ export class VicMet {
    * Uses `/import/csv` (compact; `/import` JSON has a 10MB default limit).
    *
    * @param params.exchange - exchange label for all ticks
+   * @param [params.source] - optional source label (e.g. `"ws"`)
    * @param [params.symbol] - if set, all ticks share this symbol; otherwise each tick needs `.symbol`
    * @param params.ticks - mutable buffer of ticks to dump
    * @returns number of ticks dumped
    */
   async dumpTicks({
     exchange,
+    source,
     symbol,
     ticks,
   }: {
     exchange: string;
+    source?: string;
     symbol?: string;
     ticks: TickWithSymbol[];
   }): Promise<number> {
@@ -181,7 +184,11 @@ export class VicMet {
           "import/csv",
           {
             format,
-            extra_label: [`exchange=${exchange}`, `symbol=${sym}`],
+            extra_label: [
+              `exchange=${exchange}`,
+              ...(source !== undefined ? [`source=${source}`] : []),
+              `symbol=${sym}`,
+            ],
           },
           csv,
         );

@@ -59,6 +59,10 @@ export type Action =
       endSec: number;
     }
   | { type: "appendSeries"; series: Candle[] }
+  /** Replace the loaded series (e.g. mid-game tick-source switch); keeps cursor clamped. */
+  | { type: "replaceSeries"; series: Candle[]; endSec?: number }
+  /** No further candles available — clamp the playable horizon to loaded data. */
+  | { type: "dataExhausted" }
   | { type: "fastForward"; seconds: number }
   | { type: "trade"; side: TradeSide }
   | { type: "setTradeVolume"; usd: number }
@@ -150,6 +154,29 @@ export function reducer(state: GameState, action: Action): GameState {
         error: state.error === "Loading more market data…" ? null : state.error,
       };
 
+    case "replaceSeries": {
+      if (action.series.length === 0) return state;
+      const cursor = Math.min(state.cursor, action.series.length - 1);
+      return {
+        ...state,
+        series: action.series,
+        cursor,
+        endSec: action.endSec ?? state.endSec,
+        error: state.error === "Loading more market data…" ? null : state.error,
+      };
+    }
+
+    case "dataExhausted": {
+      const lastLoadedTime = state.series[state.series.length - 1]?.time ?? state.endSec;
+      const atEnd = state.cursor >= state.series.length - 1;
+      return {
+        ...state,
+        endSec: Math.min(state.endSec, lastLoadedTime),
+        phase: atEnd ? "ended" : state.phase,
+        error: state.error === "Loading more market data…" ? null : state.error,
+      };
+    }
+
     case "fastForward": {
       if (state.phase !== "playing") return state;
       const prevPrice = currentNormPrice(state);
@@ -163,11 +190,16 @@ export function reducer(state: GameState, action: Action): GameState {
       newState.lastDeltaPct = prevPrice > 0 ? ((newPrice - prevPrice) / prevPrice) * 100 : 0;
       const lastLoadedTime = state.series[state.series.length - 1]?.time ?? 0;
       const currentTime = state.series[nextCursor]?.time ?? 0;
-      if (
-        currentTime >= state.endSec ||
-        (nextCursor >= state.series.length - 1 && lastLoadedTime >= state.endSec)
-      ) {
+      const step = stepSec(state);
+      // endSec is the last raw tick (may be fractional / mid-bar). A bar at T covers
+      // [T, T+step), so the series is exhausted once lastLoadedTime + step >= endSec.
+      // Do not compare against wall-clock now — REST trades can end hours earlier.
+      const reachedDataEnd =
+        currentTime + step >= state.endSec ||
+        (nextCursor >= state.series.length - 1 && lastLoadedTime + step >= state.endSec);
+      if (reachedDataEnd) {
         newState.phase = "ended";
+        newState.error = null;
       } else if (nextCursor >= state.series.length - 1) {
         newState.error = "Loading more market data…";
       }

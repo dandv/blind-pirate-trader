@@ -9,6 +9,15 @@ if (!VICMET_BASE) {
 }
 const EXCHANGE = "kraken";
 
+/**
+ * Which tick feed to read.
+ * - `trades` — REST `/Trades` backfill (`source="trades"`)
+ * - `ws` — live WS collector (legacy series have no `source` label; also matches `source="ws"`)
+ */
+export type TickSource = "trades" | "ws";
+
+export const TICK_SOURCES = ["trades", "ws"] as const satisfies readonly TickSource[];
+
 export interface Candle {
   /** Unix seconds (UTC) at the open of the bar. */
   time: number;
@@ -56,6 +65,14 @@ const log = {
   error: (...a: unknown[]) => console.error("[vm]", ...a),
 };
 
+/**
+ * PromQL label fragment selecting one feed.
+ * WS legacy series omit `source`; `source!="trades"` covers those and future `source="ws"`.
+ */
+export function sourceSelector(source: TickSource): string {
+  return source === "trades" ? ',source="trades"' : ',source!="trades"';
+}
+
 async function vmFetch<T>(path: string, params: Record<string, string | number>): Promise<T> {
   const usp = new URLSearchParams();
   for (const [k, v] of Object.entries(params)) usp.set(k, String(v));
@@ -80,11 +97,11 @@ async function vmFetch<T>(path: string, params: Record<string, string | number>)
   return json as T;
 }
 
-/** Lists all symbols traded on Kraken that have ticks recorded. */
-export async function listKrakenSymbols(): Promise<string[]> {
+/** Lists all symbols traded on Kraken that have ticks recorded for `source`. */
+export async function listKrakenSymbols(source: TickSource = "trades"): Promise<string[]> {
   const res = await vmFetch<{ status: string; data: Array<Record<string, string>> }>(
     "/api/v1/series",
-    { "match[]": `ticks_last{exchange="${EXCHANGE}"}` },
+    { "match[]": `ticks_last{exchange="${EXCHANGE}"${sourceSelector(source)}}` },
   );
   const symbols = res.data
     .map((s) => s.symbol)
@@ -92,33 +109,40 @@ export async function listKrakenSymbols(): Promise<string[]> {
     // Drop futures / non-spot lookalikes that contain spaces.
     .filter((s) => /^[A-Z0-9]+\/USD$/.test(s));
   if (symbols.length === 0) throw new Error("No Kraken USD pairs returned by VictoriaMetrics.");
-  return symbols;
+  return [...new Set(symbols)].sort();
 }
 
 /** Returns the most recent sample epoch (seconds) for the symbol, or null. */
-export async function latestSampleTime(symbol: string): Promise<number | null> {
-  // VM defaults to a 1h lookback when `time` is omitted; pin it to "now" explicitly
-  // so we discover samples for low-volume pairs that haven't ticked in the last hour.
-  const now = Math.floor(Date.now() / 1000);
+export async function latestSampleTime(
+  symbol: string,
+  source: TickSource = "trades",
+): Promise<number | null> {
+  // Instant selectors only return a sample within VM's staleness window (~5m).
+  // REST backfill (`source=trades`) can lag hours behind "now", so use
+  // tlast_over_time to get the actual last sample timestamp.
   const res = await vmFetch<VmVectorResponse>("/api/v1/query", {
-    query: `ticks_last{symbol="${symbol}",exchange="${EXCHANGE}"}`,
-    time: now,
+    query: `tlast_over_time(ticks_last{symbol="${symbol}",exchange="${EXCHANGE}"${sourceSelector(source)}}[30d])`,
   });
   const v = res.data?.result?.[0]?.value;
-  return v ? Number(v[0]) : null;
+  return v ? Number(v[1]) : null;
 }
 
 /**
  * Probes backwards from `latest` to discover the earliest available sample time.
  * Uses an expanding-window scan over candidate offsets in hours.
  */
-export async function earliestSampleTime(symbol: string, latest: number): Promise<number> {
+export async function earliestSampleTime(
+  symbol: string,
+  latest: number,
+  source: TickSource = "trades",
+): Promise<number> {
   const candidates = [3600, 6 * 3600, 12 * 3600, 24 * 3600, 36 * 3600, 48 * 3600, 72 * 3600];
   let deepest = candidates[0];
+  const sel = `ticks_last{symbol="${symbol}",exchange="${EXCHANGE}"${sourceSelector(source)}}`;
   for (const offset of candidates) {
     const start = latest - offset;
     const data = await vmFetch<VmRangeResponse>("/api/v1/query_range", {
-      query: `ticks_last{symbol="${symbol}",exchange="${EXCHANGE}"}`,
+      query: sel,
       start,
       end: start + 600,
       step: "60000ms",
@@ -139,10 +163,12 @@ export async function fetchOhlcv(
   startSec: number,
   endSec: number,
   stepSec: number,
+  source: TickSource = "trades",
 ): Promise<Candle[]> {
   const stepMs = `${stepSec * 1000}ms`;
-  const baseSel = `ticks_last{symbol="${symbol}",exchange="${EXCHANGE}"}`;
-  const sizeSel = `ticks_lastSize{symbol="${symbol}",exchange="${EXCHANGE}"}`;
+  const src = sourceSelector(source);
+  const baseSel = `ticks_last{symbol="${symbol}",exchange="${EXCHANGE}"${src}}`;
+  const sizeSel = `ticks_lastSize{symbol="${symbol}",exchange="${EXCHANGE}"${src}}`;
   const rng = `[${stepSec}s]`;
   const queries: Array<[string, string]> = [
     ["open", `first_over_time(${baseSel}${rng})`],
@@ -205,6 +231,6 @@ export async function fetchOhlcv(
       volume: row.volume ?? 0,
     });
   }
-  log.info(`fetched ${candles.length} candles for ${symbol} @ ${stepSec}s`);
+  log.info(`fetched ${candles.length} candles for ${symbol} (${source}) @ ${stepSec}s`);
   return candles;
 }

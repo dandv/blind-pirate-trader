@@ -16,6 +16,7 @@ import {
   latestSampleTime,
   listKrakenSymbols,
   type Candle,
+  type TickSource,
 } from "@/lib/victoriametrics";
 
 export const Route = createFileRoute("/")({
@@ -52,6 +53,7 @@ interface PreparedGame {
   endSec: number;
   candles: Candle[];
   normFactor: number;
+  source: TickSource;
 }
 
 function Index() {
@@ -60,13 +62,18 @@ function Index() {
   const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [showVolume, setShowVolume] = useState(true);
+  const [tickSource, setTickSource] = useState<TickSource>("trades");
+  const [sourceSwitching, setSourceSwitching] = useState(false);
   const [pulseLabel, setPulseLabel] = useState<string | null>(null);
   const [prepared, setPrepared] = useState<PreparedGame | null>(null);
   const [preparing, setPreparing] = useState(false);
   const pulseSeq = useRef(0);
   const preparedRef = useRef<PreparedGame | null>(null);
   const preparePromiseRef = useRef<Promise<PreparedGame> | null>(null);
+  const prepareGenRef = useRef(0);
   const chunkRequestRef = useRef<string | null>(null);
+  const tickSourceRef = useRef(tickSource);
+  tickSourceRef.current = tickSource;
 
   const dark =
     theme === "dark" ||
@@ -80,12 +87,14 @@ function Index() {
   }, []);
 
   const prepareNextGame = useCallback(async (): Promise<PreparedGame> => {
-    if (preparedRef.current) return preparedRef.current;
+    const source = tickSourceRef.current;
+    if (preparedRef.current?.source === source) return preparedRef.current;
     if (preparePromiseRef.current) return preparePromiseRef.current;
 
+    const gen = ++prepareGenRef.current;
     setPreparing(true);
     const promise = (async () => {
-      const allSymbols = await listKrakenSymbols();
+      const allSymbols = await listKrakenSymbols(source);
       const pool = [...allSymbols];
       const minPlay = MIN_PLAY_HOURS * 3600;
 
@@ -97,14 +106,14 @@ function Index() {
       for (let attempt = 0; attempt < MAX_SYMBOL_ATTEMPTS && pool.length; attempt++) {
         const idx = Math.floor(Math.random() * pool.length);
         const candidate = pool.splice(idx, 1)[0];
-        console.info("[game] trying symbol", candidate, `(attempt ${attempt + 1})`);
+        console.info("[game] trying symbol", candidate, `(${source}, attempt ${attempt + 1})`);
 
-        const lt = await latestSampleTime(candidate);
+        const lt = await latestSampleTime(candidate, source);
         if (!lt) {
           rejections.push({ symbol: candidate, reason: "no current tick" });
           continue;
         }
-        const er = await earliestSampleTime(candidate, lt);
+        const er = await earliestSampleTime(candidate, lt, source);
         const spanH = (lt - er) / 3600;
         console.info("[game] span", candidate, `${spanH.toFixed(2)}h`);
         if (lt - er < minPlay + 600) {
@@ -121,6 +130,7 @@ function Index() {
         console.error("[game] no usable symbol", {
           tried: rejections,
           minPlayHours: MIN_PLAY_HOURS,
+          source,
         });
         throw new Error(
           `Couldn't find a Kraken pair with at least ${MIN_PLAY_HOURS}h of recent data after ${rejections.length} tries. Try again.`,
@@ -135,46 +145,96 @@ function Index() {
       const firstChunkEndSec = Math.min(endSec, startSec + CHUNK_SEC);
       console.info("[game] prepared range", {
         symbol,
+        source,
         startISO: new Date(startSec * 1000).toISOString(),
         firstChunkEndISO: new Date(firstChunkEndSec * 1000).toISOString(),
         endISO: new Date(endSec * 1000).toISOString(),
       });
 
-      const candles = await fetchOhlcv(symbol, startSec, firstChunkEndSec, STEP_SEC);
+      const candles = await fetchOhlcv(symbol, startSec, firstChunkEndSec, STEP_SEC, source);
       if (candles.length < 60) {
         throw new Error(`Insufficient candles fetched (${candles.length}). Try again.`);
       }
 
-      return { symbol, startSec, endSec, candles, normFactor: candles[0].open / 100 };
+      return { symbol, startSec, endSec, candles, normFactor: candles[0].open / 100, source };
     })();
 
     preparePromiseRef.current = promise;
     try {
       const game = await promise;
+      if (gen !== prepareGenRef.current) return game;
       preparedRef.current = game;
       setPrepared(game);
       return game;
     } finally {
-      preparePromiseRef.current = null;
-      setPreparing(false);
+      if (preparePromiseRef.current === promise) preparePromiseRef.current = null;
+      if (gen === prepareGenRef.current) setPreparing(false);
     }
   }, []);
 
   useEffect(() => {
-    if (state.phase === "intro") {
-      prepareNextGame().catch((e) => {
-        const msg = e instanceof Error ? e.message : "Unknown error loading the market.";
-        console.error("[game] prepare failed", e);
-        setLoadError(msg);
-      });
-    }
-  }, [state.phase, prepareNextGame]);
+    if (state.phase !== "intro") return;
+    prepareNextGame().catch((e) => {
+      const msg = e instanceof Error ? e.message : "Unknown error loading the market.";
+      console.error("[game] prepare failed", e);
+      setLoadError(msg);
+    });
+  }, [state.phase, tickSource, prepareNextGame]);
+
+  const changeTickSource = useCallback(
+    async (next: TickSource) => {
+      if (next === tickSource) return;
+      prepareGenRef.current += 1;
+      preparedRef.current = null;
+      setPrepared(null);
+      preparePromiseRef.current = null;
+      chunkRequestRef.current = null;
+      setTickSource(next);
+      setLoadError(null);
+
+      if (state.phase === "intro") return;
+
+      // Mid-game: refetch the same wall-clock window from the other feed for A/B.
+      const origin = state.series[0]?.time;
+      if (!origin || !state.symbol) return;
+      setSourceSwitching(true);
+      try {
+        const endSec = state.endSec;
+        const loadedEnd = Math.max(
+          state.series[state.series.length - 1]?.time ?? origin,
+          Math.min(endSec, origin + CHUNK_SEC),
+        );
+        const candles = await fetchOhlcv(state.symbol, origin, loadedEnd, STEP_SEC, next);
+        if (candles.length < 2) {
+          dispatch({
+            type: "error",
+            message: `No ${next} candles for this window — try the other source or end the game.`,
+          });
+          return;
+        }
+        dispatch({ type: "replaceSeries", series: candles, endSec });
+      } catch (e) {
+        console.error("[game] source switch failed", e);
+        dispatch({
+          type: "error",
+          message: e instanceof Error ? e.message : "Failed to switch tick source.",
+        });
+      } finally {
+        setSourceSwitching(false);
+      }
+    },
+    [tickSource, state.phase, state.series, state.symbol, state.endSec],
+  );
 
   const startGame = useCallback(async () => {
     setLoading(true);
     setLoadError(null);
     try {
-      const game = preparedRef.current ?? (await prepareNextGame());
+      let game = preparedRef.current;
+      if (!game || game.source !== tickSourceRef.current) {
+        preparedRef.current = null;
+        game = await prepareNextGame();
+      }
       const initialCursor = Math.min(game.candles.length - 1, Math.floor((5 * 60) / STEP_SEC));
       dispatch({
         type: "init",
@@ -225,17 +285,28 @@ function Index() {
     if (state.phase !== "playing" || state.series.length === 0) return;
     const currentTime = state.series[state.cursor]?.time ?? 0;
     const latestLoaded = state.series[state.series.length - 1]?.time ?? 0;
-    if (latestLoaded >= state.endSec || latestLoaded - currentTime > PREFETCH_THRESHOLD_SEC) return;
+    if (
+      latestLoaded + STEP_SEC >= state.endSec ||
+      latestLoaded - currentTime > PREFETCH_THRESHOLD_SEC
+    ) {
+      return;
+    }
 
     const nextStart = latestLoaded + STEP_SEC;
     const nextEnd = Math.min(state.endSec, latestLoaded + CHUNK_SEC);
-    const requestKey = `${state.symbol}:${nextStart}:${nextEnd}`;
+    const source = tickSourceRef.current;
+    const requestKey = `${state.symbol}:${source}:${nextStart}:${nextEnd}`;
     if (chunkRequestRef.current === requestKey) return;
     chunkRequestRef.current = requestKey;
 
-    fetchOhlcv(state.symbol, nextStart, nextEnd, STEP_SEC)
+    fetchOhlcv(state.symbol, nextStart, nextEnd, STEP_SEC, source)
       .then((candles) => {
-        if (candles.length > 0) dispatch({ type: "appendSeries", series: candles });
+        if (candles.length > 0) {
+          dispatch({ type: "appendSeries", series: candles });
+          return;
+        }
+        // Past the last available bar for this series (e.g. trades lag hours behind now).
+        dispatch({ type: "dataExhausted" });
       })
       .catch((e) => {
         console.error("[game] chunk prefetch failed", e);
@@ -245,7 +316,7 @@ function Index() {
         });
         chunkRequestRef.current = null;
       });
-  }, [state.phase, state.symbol, state.series, state.cursor, state.endSec]);
+  }, [state.phase, state.symbol, state.series, state.cursor, state.endSec, tickSource]);
 
   // Keyboard shortcuts.
   useEffect(() => {
@@ -340,13 +411,13 @@ function Index() {
               Blind Trader
             </span>
           </h1>
-          <span className="hidden text-xs text-muted-foreground sm:inline">
-            {state.phase === "playing"
-              ? `Mystery asset · t = ${formatElapsedShort(tOffsetSec(state))}`
-              : state.phase === "ended"
-                ? `Revealed: ${state.symbol}`
-                : "Ready"}
-          </span>
+            <span className="hidden text-xs text-muted-foreground sm:inline">
+              {state.phase === "playing"
+                ? `Mystery asset · ${tickSource} · t = ${formatElapsedShort(tOffsetSec(state))}`
+                : state.phase === "ended"
+                  ? `Revealed: ${state.symbol}`
+                  : "Ready"}
+            </span>
         </div>
         <ThemeSelector value={theme} onChange={setTheme} />
       </header>
@@ -389,6 +460,9 @@ function Index() {
                 onEnd={onEnd}
                 showVolume={showVolume}
                 onToggleVolume={setShowVolume}
+                tickSource={tickSource}
+                onTickSource={(s) => void changeTickSource(s)}
+                sourceSwitching={sourceSwitching}
                 disabled={state.phase !== "playing"}
                 pulseLabel={pulseLabel}
               />
@@ -418,6 +492,9 @@ function Index() {
               onEnd={onEnd}
               showVolume={showVolume}
               onToggleVolume={setShowVolume}
+              tickSource={tickSource}
+              onTickSource={(s) => void changeTickSource(s)}
+              sourceSwitching={sourceSwitching}
               disabled={state.phase !== "playing"}
               pulseLabel={pulseLabel}
             />
@@ -442,6 +519,8 @@ function Index() {
           prepared={Boolean(prepared)}
           preparing={preparing}
           error={loadError}
+          tickSource={tickSource}
+          onTickSource={(s) => void changeTickSource(s)}
         />
       )}
       {state.phase === "ended" && <GameEnd state={state} onRestart={restart} />}

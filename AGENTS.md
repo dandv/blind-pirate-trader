@@ -38,14 +38,15 @@ Under Deno, Nitro auto-selects `deno-server`. That preset currently hangs after 
 
 ## Tick collection (`ticks/`)
 
-Kraken Spot WS → VictoriaMetrics ingest lives under `ticks/` (own `deno.jsonc`):
+Kraken Spot WS + REST Trades → VictoriaMetrics ingest lives under `ticks/` (own `deno.jsonc`):
 
 ```bash
 deno task ticks:vicmet   # foreground test VicMet on :7357
-deno task ticks          # collect into VICMET_URL from .env (requires that instance up)
+deno task ticks          # live WS collect into VICMET_URL (requires that instance up)
+deno task ticks:trades   # 1-month raw-trade backfill from REST /Trades into VICMET_URL
 deno task ticks:test     # integration test against VICMET_URL_TEST
 ```
 
-Or from `ticks/`: `deno task --env-file=../.env collect` / `test`. See `ticks/README.md`.
+Or from `ticks/`: `deno task --env-file=../.env collect` / `collect:trades` / `test`. See `ticks/README.md`.
 
 `:7357` is the local **test** VicMet only (`deno task ticks:vicmet`). Live ingest uses `VICMET_URL` from `.env`. `vicmet:ready` / `vicmet:test:ready` health-check `$VICMET_URL` and `$VICMET_URL_TEST`. Logger: `jsr:@dandv/timestamp-logger`.

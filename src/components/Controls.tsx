@@ -10,6 +10,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { VOLUME_CHOICES, type VolumeChoice } from "@/lib/gameState";
+import type { TickSource } from "@/lib/victoriametrics";
 
 export interface ControlsProps {
   tradeVolumeUsd: number;
@@ -20,6 +21,9 @@ export interface ControlsProps {
   onEnd: () => void;
   showVolume: boolean;
   onToggleVolume: (v: boolean) => void;
+  tickSource: TickSource;
+  onTickSource: (s: TickSource) => void;
+  sourceSwitching?: boolean;
   disabled: boolean;
   /**
    * When this string changes, pulse the button identified by the prefix before "#".
@@ -158,6 +162,31 @@ export function Controls(props: ControlsProps) {
             />
             Vol
           </label>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <div className="flex items-center border-l border-border">
+                {(["trades", "ws"] as const).map((s) => (
+                  <button
+                    key={s}
+                    type="button"
+                    className={
+                      "h-6 px-1.5 text-[10px] whitespace-nowrap " +
+                      (props.tickSource === s
+                        ? "bg-secondary text-foreground font-semibold"
+                        : "text-muted-foreground hover:text-foreground")
+                    }
+                    disabled={props.disabled || props.sourceSwitching}
+                    onClick={() => props.onTickSource(s)}
+                  >
+                    {s}
+                  </button>
+                ))}
+              </div>
+            </TooltipTrigger>
+            <TooltipContent>
+              Tick feed: REST trades vs WS (same window). Chart density should look similar.
+            </TooltipContent>
+          </Tooltip>
         </div>
 
         {/* Row 1: 5m, 15m, 30m */}

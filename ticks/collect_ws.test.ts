@@ -26,7 +26,10 @@ function requiredEnv(key: string): string {
    return value;
 }
 
-/** Env for children: drop LD_ and DYLD_ vars so scoped --allow-run is enough. */
+/**
+ * Env for children: drop LD_ / DYLD_ so scoped --allow-run is enough, but keep PATH/HOME
+ * so `deno task collect` can find `curl` and nested `deno`.
+ */
 function childEnv(extra: Record<string, string> = {}): Record<string, string> {
    const env: Record<string, string> = {};
    for (const [k, v] of Object.entries(Deno.env.toObject())) {
@@ -34,6 +37,28 @@ function childEnv(extra: Record<string, string> = {}): Record<string, string> {
       env[k] = v;
    }
    return { ...env, ...extra };
+}
+
+/** SIGTERM the task runner and any direct children (nested `deno run collect_ws`). */
+function killCollector(proc: Deno.ChildProcess): void {
+   try {
+      new Deno.Command('pkill', {
+         args: ['-TERM', '-P', String(proc.pid)],
+         stdout: 'null',
+         stderr: 'null',
+      }).outputSync();
+   } catch { /* no children or pkill unavailable */ }
+   try {
+      proc.kill('SIGTERM');
+   } catch { /* already exited */ }
+}
+
+/** Drain piped stdout/stderr once (calling .text() locks the streams). */
+async function readCollectorOutput(
+   proc: Deno.ChildProcess,
+): Promise<{ out: string; err: string }> {
+   const [out, err] = await Promise.all([proc.stdout.text(), proc.stderr.text()]);
+   return { out, err };
 }
 
 async function isVicMetUp(url: string): Promise<boolean> {
@@ -50,7 +75,7 @@ async function recentSampleCount(url: string): Promise<number> {
    await vm.flush();
    // count_over_time so we detect new points even when the symbol set is unchanged
    const text = await vm.getText('query', {
-      query: 'sum(count_over_time({__name__=~"ticks_.*",exchange="kraken"}[3m]))',
+      query: 'sum(count_over_time({__name__=~"ticks_.*",exchange="kraken",source="ws"}[3m]))',
    });
    const json = JSON.parse(text) as {
       status: string
@@ -71,23 +96,17 @@ Deno.test('collect_ws: when pointed at VicMet on VICMET_URL_TEST, captures some 
    );
 
    let collector: Deno.ChildProcess | undefined;
+   /** True after stdout/stderr were drained via .text() — do not cancel afterward. */
+   let outputDrained = false;
 
    try {
       const before = await recentSampleCount(vicmetUrl);
       console.log(`Recent ticks_* samples before collect: ${before}`);
 
-      console.log('Starting collect_ws...');
+      console.log('Starting collect_ws via deno task collect...');
+      // Remap VICMET_URL → test instance so task dependency vicmet:ready and collect_ws agree.
       collector = new Deno.Command('deno', {
-         args: [
-            'run',
-            `--config=${MODULE_DIR}/deno.jsonc`,
-            '--allow-net=api.kraken.com,ws.kraken.com,127.0.0.1,localhost',
-            '--allow-env=VICMET_URL',
-            '--allow-read',
-            '--allow-write',
-            '--allow-sys=homedir',
-            `${MODULE_DIR}/collect_ws.ts`,
-         ],
+         args: ['task', 'collect'],
          cwd: MODULE_DIR,
          clearEnv: true,
          env: childEnv({ VICMET_URL: vicmetUrl }),
@@ -105,10 +124,9 @@ Deno.test('collect_ws: when pointed at VicMet on VICMET_URL_TEST, captures some 
             new Promise<null>((r) => setTimeout(() => r(null), 0)),
          ]);
          if (raced) {
-            const [out, err] = await Promise.all([
-               collector.stdout.text(),
-               collector.stderr.text(),
-            ]);
+            const { out, err } = await readCollectorOutput(collector);
+            outputDrained = true;
+            collector = undefined;
             throw new Error(
                `collect_ws exited early (code=${raced.code})\n--- stdout ---\n${out}\n--- stderr ---\n${err}`,
             );
@@ -119,14 +137,10 @@ Deno.test('collect_ws: when pointed at VicMet on VICMET_URL_TEST, captures some 
       }
 
       if (after <= before) {
-         try {
-            collector.kill('SIGTERM');
-         } catch { /* ignore */ }
+         killCollector(collector);
          const status = await collector.status;
-         const [out, err] = await Promise.all([
-            collector.stdout.text(),
-            collector.stderr.text(),
-         ]);
+         const { out, err } = await readCollectorOutput(collector);
+         outputDrained = true;
          collector = undefined;
          throw new Error(
             `expected new ticks_* samples after collecting (before=${before}, after=${after}, exit=${status.code})\n--- stdout ---\n${out}\n--- stderr ---\n${err}`,
@@ -138,11 +152,11 @@ Deno.test('collect_ws: when pointed at VicMet on VICMET_URL_TEST, captures some 
       console.log(`Captured ticks: samples ${before} → ${after}`);
    } finally {
       if (collector) {
-         try {
-            collector.kill('SIGTERM');
-         } catch { /* already exited */ }
+         killCollector(collector);
          await collector.status;
-         await Promise.all([collector.stdout.cancel(), collector.stderr.cancel()]);
+         if (!outputDrained) {
+            await Promise.all([collector.stdout.cancel(), collector.stderr.cancel()]);
+         }
       }
    }
 });
