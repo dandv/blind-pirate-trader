@@ -1,0 +1,54 @@
+{
+  "version": "5",
+  "specifiers": {
+    "jsr:@dandv/timestamp-logger@^2.1.0": "2.1.0",
+    "jsr:@std/assert@1": "1.0.19",
+    "jsr:@std/internal@^1.0.12": "1.0.14",
+    "npm:clean-stack@^5.3.0": "5.3.0",
+    "npm:serialize-error@12": "12.0.0"
+  },
+  "jsr": {
+    "@dandv/timestamp-logger@2.1.0": {
+      "integrity": "d8db2dbfa843c1d66b6b2991a718d88ad119b6259c7c011ca10d17ef8064bb19",
+      "dependencies": [
+        "npm:clean-stack",
+        "npm:serialize-error"
+      ]
+    },
+    "@std/assert@1.0.19": {
+      "integrity": "eaada96ee120cb980bc47e040f82814d786fe8162ecc53c91d8df60b8755991e",
+      "dependencies": [
+        "jsr:@std/internal"
+      ]
+    },
+    "@std/internal@1.0.14": {
+      "integrity": "291516b3d4c35024d6ffbc0a9df5bf4c64116e05b50012cf846710152d2ffdf7"
+    }
+  },
+  "npm": {
+    "clean-stack@5.3.0": {
+      "integrity": "sha512-9ngPTOhYGQqNVSfeJkYXHmF7AGWp4/nN5D/QqNQs3Dvxd1Kk/WpjHfNujKHYUQ/5CoGyOyFNoWSPk5afzP0QVg==",
+      "dependencies": [
+        "escape-string-regexp"
+      ]
+    },
+    "escape-string-regexp@5.0.0": {
+      "integrity": "sha512-/veY75JbMK4j1yjvuUxuVsiS/hr/4iHs9FTT6cgTexxdE0Ly/glccBAkloH/DofkjRbZU3bnoj38mOmhkZ0lHw=="
+    },
+    "serialize-error@12.0.0": {
+      "integrity": "sha512-ZYkZLAvKTKQXWuh5XpBw7CdbSzagarX39WyZ2H07CDLC5/KfsRGlIXV8d4+tfqX1M7916mRqR1QfNHSij+c9Pw==",
+      "dependencies": [
+        "type-fest"
+      ]
+    },
+    "type-fest@4.41.0": {
+      "integrity": "sha512-TeTSQ6H5YHvpqVwBRcnLDCBnDOHWYu7IvGbHT6N8AOymcr9PJGjc1GTtiWZTYg0NCgYwvnYWEkVChQAr9bjfwA=="
+    }
+  },
+  "workspace": {
+    "dependencies": [
+      "jsr:@dandv/timestamp-logger@^2.1.0",
+      "jsr:@std/assert@1"
+    ]
+  }
+}

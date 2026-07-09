@@ -35,3 +35,17 @@ deno task build:pages   # output in .output/public; base derived from repo name 
 Stack: Deno + Vite + TanStack Start. `nitro()` is in `vite.config.ts` because Start uses Nitro as its server/deploy build layer (SSR, server routes, adapters). This app's GitHub Pages path is SPA-only (`build:pages`), so Nitro's hosting adapters are unused in production; static files come from `.output/public`. Deno Deploy also lists TanStack Start as a supported framework via Nitro.
 
 Under Deno, Nitro auto-selects `deno-server`. That preset currently hangs after SPA prerender process shutdown, so `build:pages` forces `nitro({ preset: "node" })` (static `.output/public` is all Pages needs). Direct dep `@tanstack/query-core` is listed in `deno.jsonc` because Deno's isolated `node_modules` layout otherwise breaks Vite resolution of that nested package.
+
+## Tick collection (`ticks/`)
+
+Kraken Spot WS → VictoriaMetrics ingest lives under `ticks/` (own `deno.jsonc`):
+
+```bash
+deno task ticks:vicmet   # foreground test VicMet on :7357
+deno task ticks          # collect into VICMET_URL from .env (requires that instance up)
+deno task ticks:test     # integration test against VICMET_URL_TEST
+```
+
+Or from `ticks/`: `deno task --env-file=../.env collect` / `test`. See `ticks/README.md`.
+
+`:7357` is the local **test** VicMet only (`deno task ticks:vicmet`). Live ingest uses `VICMET_URL` from `.env`. `vicmet:ready` / `vicmet:test:ready` health-check `$VICMET_URL` and `$VICMET_URL_TEST`. Logger: `jsr:@dandv/timestamp-logger`.

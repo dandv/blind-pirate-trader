@@ -30,11 +30,21 @@ Then navigate to http://localhost:8080.
 
 The game was developed a preliminary exploration of Kraken's API suitability for consumption by AI agents.
 
-Price data was collected via the [Spot WebSocket](https://docs.kraken.com/exchange/api-reference/spot-websocket) API and persisted into a VictoriaMetrics instance:
+Price data was collected via the [Spot WebSocket](https://docs.kraken.com/exchange/api-reference/spot-websocket) API and persisted into a VictoriaMetrics instance (`ticks/collect_ws.ts`):
+
 - `ticker` channel for bid/ask/bidSize/askSize
 - `trades` channel for last/lastSize
 
 The data ingestion pipeline collected the top 20 traded /USD spot pairs by 24h volume, dynamically discovered at startup via Kraken public REST /Ticker + /AssetPairs. Pairs were ranked by approximate notional volume (24h base volume * last price) among online /USD pairs that have leverage enabled and are not stablecoin bases (USDT, USDC, etc.).
+
+To re-run collection locally:
+
+```bash
+# Point VICMET_URL in .env at your ingest instance, then:
+deno task ticks
+# or:
+cd ticks && deno task --env-file=../.env collect
+```
 
 ## API feedback
 

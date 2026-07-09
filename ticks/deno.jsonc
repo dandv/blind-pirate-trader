@@ -1,0 +1,35 @@
+{
+  "tasks": {
+    "vicmet": {
+      "description": "Start local VicMet on :7357 (foreground; storage under ./ticks/)",
+      "command": "~/apps/victoria-metrics-prod_1.143.0 -storageDataPath=./ticks -retentionPeriod=100y -search.latencyOffset=1s -httpListenAddr=:7357"
+    },
+    "vicmet:ready": {
+      "description": "No-op if VicMet is healthy at VICMET_URL; otherwise fail with a hint",
+      // Pass env via: deno task --env-file=../.env vicmet:ready
+      "command": "curl -sf $VICMET_URL/health || (echo VicMet not running at $VICMET_URL — set VICMET_URL in .env and ensure that instance is up && false)"
+    },
+    "vicmet:test:ready": {
+      "description": "No-op if VicMet is healthy at VICMET_URL_TEST; otherwise fail with a hint",
+      // Pass env via: deno task --env-file=../.env vicmet:test:ready
+      "command": "curl -sf $VICMET_URL_TEST/health || (echo \"VicMet not running at $VICMET_URL_TEST — start it in another terminal: deno task vicmet or deno task ticks:vicmet\" && false)"
+    },
+    "collect": {
+      "description": "Collect Kraken WS ticks into VictoriaMetrics (needs VICMET_URL)",
+      "dependencies": ["vicmet:ready"],
+      // Pass env via: deno task --env-file=../.env collect
+      "command": "deno run --allow-net=api.kraken.com,ws.kraken.com,127.0.0.1,localhost --allow-env=VICMET_URL --allow-read=./logs,. --allow-write=./logs --allow-sys=homedir collect_ws.ts"
+    },
+    "test": {
+      "description": "Integration test: live Kraken WS → VicMet at VICMET_URL_TEST (requires VicMet already running)",
+      "dependencies": ["vicmet:test:ready"],
+      // Unscoped --allow-run: Cursor AppImage injects LD_LIBRARY_PATH.
+      // Pass env via: deno task --env-file=../.env test
+      "command": "deno test --allow-net=api.kraken.com,ws.kraken.com,127.0.0.1,localhost,0.0.0.0 --allow-env --allow-read --allow-write --allow-run --allow-sys=homedir collect_ws.test.ts"
+    }
+  },
+  "imports": {
+    "@dandv/timestamp-logger": "jsr:@dandv/timestamp-logger@^2.1.0",
+    "@std/assert": "jsr:@std/assert@^1"
+  }
+}

@@ -1,0 +1,27 @@
+{
+  // Mixed repo: Vite/TanStack app at root, Deno only under ticks/
+  "deno.enable": true,
+  "deno.enablePaths": ["./ticks"],
+  "deno.config": "./ticks/deno.jsonc",
+  // Test Explorer's deno/testRun path does not honor --env-file in testing.args;
+  // load repo-root .env via this setting instead (VICMET_URL_TEST, VICMET_URL, …).
+  "deno.envFile": ".env",
+  // Do not pass --config here: `deno.config` already injects it (duplicate → CLI error).
+  // Unscoped --allow-run: Cursor AppImage injects LD_LIBRARY_PATH.
+  "deno.testing.args": [
+    "--allow-net=api.kraken.com,ws.kraken.com,127.0.0.1,localhost,0.0.0.0",
+    "--allow-env",
+    "--allow-read",
+    "--allow-write",
+    "--allow-run",
+    "--allow-sys=homedir"
+  ],
+  "deno.codeLens.testArgs": [
+    "--allow-net=api.kraken.com,ws.kraken.com,127.0.0.1,localhost,0.0.0.0",
+    "--allow-env",
+    "--allow-read",
+    "--allow-write",
+    "--allow-run",
+    "--allow-sys=homedir"
+  ]
+}
