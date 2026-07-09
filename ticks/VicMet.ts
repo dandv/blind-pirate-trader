@@ -13,7 +13,7 @@ export interface Logger {
   error(msg: string, ...args: unknown[]): void;
 }
 
-const TICK_TYPES = ["bid", "bidSize", "ask", "askSize", "last", "lastSize", "lastVol"] as const;
+const TICK_TYPES = ["bid", "bidSize", "ask", "askSize", "last", "lastSize"] as const;
 type TickType = (typeof TICK_TYPES)[number];
 
 /** Tick row accepted by {@linkcode VicMet#dumpTicks}. */

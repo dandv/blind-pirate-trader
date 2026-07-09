@@ -9,7 +9,7 @@ deno install
 deno task dev
 ```
 
-App listens on http://localhost:8080. The browser fetches market data directly from `VICMET_BASE` in `.env` (default `https://vicmet.dandv.me`, CORS-enabled vmauth gateway). Vite exposes it via `envPrefix: ["VITE_", "VICMET_"]`.
+App listens on http://localhost:8080. The browser fetches market data directly from `VICMET_BASE` (CORS-enabled vmauth gateway, default `https://vicmet.dandv.me`). Vite exposes it via `envPrefix: ["VITE_", "VICMET_"]`. Local: copy `.env.example` → `.env`. GitHub Pages: CI sets `VICMET_BASE` in `deploy-pages.yml` (`.env.example` is not loaded by Vite).
 
 Vite tasks pass `--unstable-no-legacy-abort` (and `unstable: ["no-legacy-abort"]` is set in `deno.jsonc`) so Vite's `Deno.serve` does not abort `request.signal` on successful responses (see https://docs.deno.com/go/unstable-no-legacy-abort). The CLI flag is required in practice for `npm:vite`.
 

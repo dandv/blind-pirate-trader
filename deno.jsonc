@@ -17,7 +17,10 @@
       "command": "deno run -A --unstable-no-legacy-abort npm:vite build"
     },
     "build:pages": {
-      "description": "SPA build for GitHub Pages (base path from GITHUB_REPOSITORY)",
+      "description": "SPA build for GitHub Pages (base path from GITHUB_REPOSITORY; needs VICMET_BASE)",
+      // VICMET_BASE must come from the process env or a Vite-loaded .env file.
+      // Deno tasks do not expand ${VAR:-default}. CI sets VICMET_BASE in
+      // deploy-pages.yml; local builds use .env (copy from .env.example).
       "command": "GITHUB_PAGES=true deno run -A --unstable-no-legacy-abort npm:vite build"
     },
     "build:dev": {
@@ -41,8 +44,12 @@
       "command": "deno task --env-file --cwd=ticks vicmet"
     },
     "ticks": {
-      "description": "Collect Kraken ticks into VICMET_URL (requires VicMet already running)",
+      "description": "Collect Kraken WS ticks into VICMET_URL (requires VicMet already running)",
       "command": "deno task --env-file --cwd=ticks collect"
+    },
+    "ticks:trades": {
+      "description": "Backfill raw trades from Kraken /Trades into VICMET_URL (1-month lookback)",
+      "command": "deno task --env-file --cwd=ticks collect:trades"
     },
     "ticks:test": {
       "description": "Run ticks integration test against VICMET_URL_TEST (requires test VicMet already running)",

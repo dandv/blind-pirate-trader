@@ -38,6 +38,10 @@ jobs:
         run: deno install --frozen
 
       - name: Build (GitHub Pages, SPA)
+        # VICMET_BASE is public (CORS gateway); Vite embeds it at build time.
+        # CI has no .env (gitignored), so set it here — same default as .env.example.
+        env:
+          VICMET_BASE: https://vicmet.dandv.me
         run: deno task build:pages
 
       - name: Add SPA fallback

@@ -28,7 +28,7 @@ Then navigate to http://localhost:8080.
 
 ## Kraken API usage
 
-The game was developed a preliminary exploration of Kraken's API suitability for consumption by AI agents.
+The game was developed as a preliminary exploration of Kraken's API suitability for consumption by AI agents.
 
 Price data was collected via the [Spot WebSocket](https://docs.kraken.com/exchange/api-reference/spot-websocket) API and persisted into a VictoriaMetrics instance (`ticks/collect_ws.ts`):
 

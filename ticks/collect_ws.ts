@@ -2,7 +2,7 @@
  * @file collect_ws — Monitor live market data for the top 20 traded /USD spot pairs
  * by 24h volume (dynamically discovered at startup via Kraken public REST /Ticker + /AssetPairs)
  * via Kraken's public WebSocket v2 API (ticker for BBO + last, trade for per-trade
- * last+lastSize, plus 24h volume deltas for lastVol).
+ * last+lastSize).
  *
  * Pairs are ranked by approximate notional volume (24h base volume * last price) among
  * online /USD pairs that have leverage enabled and are not stablecoin bases (USDT, USDC, etc.).
